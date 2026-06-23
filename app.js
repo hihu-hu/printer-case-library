@@ -908,8 +908,7 @@ function buildShareMessage(type = shareType) {
 
   if (type === "all") {
     return [
-      "打印机售后案例库",
-      `目前共收录 ${cases.length} 条案例，可按机型、问题分类和关键词查找。`,
+      "《打印机故障案例》",
       `查看链接：${link}`,
     ].join("\n");
   }
@@ -920,7 +919,7 @@ function buildShareMessage(type = shareType) {
   }
 
   return [
-    item.title,
+    `《${item.title}》`,
     link,
   ].join("\n");
 }
