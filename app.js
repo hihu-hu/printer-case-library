@@ -69,6 +69,8 @@ const shareModal = document.querySelector("#shareModal");
 const shareLinkInput = document.querySelector("#shareLinkInput");
 const shareMessageInput = document.querySelector("#shareMessageInput");
 const openShareLink = document.querySelector("#openShareLink");
+const exportModal = document.querySelector("#exportModal");
+const exportCaseList = document.querySelector("#exportCaseList");
 const adminLoginBtn = document.querySelector("#adminLoginBtn");
 let shareType = "case";
 let isSingleCaseView = false;
@@ -1055,7 +1057,7 @@ function renderPrintMedia(mediaList) {
   `;
 }
 
-function buildExportContent() {
+function buildExportContent(exportCases = cases) {
   const exportDate = new Date().toLocaleString("zh-CN", {
     year: "numeric",
     month: "2-digit",
@@ -1064,7 +1066,7 @@ function buildExportContent() {
     minute: "2-digit",
   });
 
-  const caseCards = cases
+  const caseCards = exportCases
     .map(
       (item) => `
         <article class="print-case">
@@ -1113,7 +1115,7 @@ function buildExportContent() {
       <header class="print-title">
         <p>打印机售后案例库</p>
         <h1>全部案例导出</h1>
-        <span>共 ${cases.length} 条案例 / 导出时间：${exportDate}</span>
+        <span>共 ${exportCases.length} 条案例 / 导出时间：${exportDate}</span>
       </header>
       ${caseCards}
     </main>
@@ -1142,9 +1144,54 @@ function getPdfFileName() {
   return `打印机故障案例-${dateText}.pdf`;
 }
 
-async function exportPdf() {
+function getDefaultExportCases() {
+  const filtered = getFilteredCases();
+  return filtered.length ? filtered : cases;
+}
+
+function renderExportChoices() {
+  const exportCases = getDefaultExportCases();
+  exportCaseList.innerHTML = exportCases
+    .map(
+      (item) => `
+        <label class="export-item">
+          <input type="checkbox" value="${item.id}" checked />
+          <span>
+            <strong>${item.title}</strong>
+            <small>${item.model} / ${item.category} / ${item.level}</small>
+          </span>
+        </label>
+      `
+    )
+    .join("");
+}
+
+function openExportModal() {
   if (!cases.length) {
     showToast("还没有案例，先新增案例后再导出 PDF。");
+    return;
+  }
+
+  renderExportChoices();
+  exportModal.classList.add("show");
+  exportModal.setAttribute("aria-hidden", "false");
+}
+
+function closeExportModal() {
+  exportModal.classList.remove("show");
+  exportModal.setAttribute("aria-hidden", "true");
+}
+
+function getChosenExportCases() {
+  const chosenIds = Array.from(exportCaseList.querySelectorAll("input[type='checkbox']:checked")).map((input) =>
+    Number(input.value)
+  );
+  return chosenIds.map((id) => cases.find((item) => item.id === id)).filter(Boolean);
+}
+
+async function exportPdf(exportCases) {
+  if (!exportCases.length) {
+    showToast("请至少勾选一个案例。");
     return;
   }
 
@@ -1155,7 +1202,7 @@ async function exportPdf() {
 
   const exportNode = document.createElement("div");
   exportNode.className = "pdf-export-area print-page";
-  exportNode.innerHTML = buildExportContent();
+  exportNode.innerHTML = buildExportContent(exportCases);
   document.body.appendChild(exportNode);
 
   const options = {
@@ -1170,6 +1217,7 @@ async function exportPdf() {
   try {
     showToast("正在生成 PDF，请稍等。");
     await window.html2pdf().set(options).from(exportNode).save();
+    closeExportModal();
     showToast("PDF 已下载，可以用 WPS 打开。");
   } catch (error) {
     showToast("PDF 生成失败，请刷新页面后再试。");
@@ -1361,6 +1409,10 @@ document.querySelector("#closeShareBtn").addEventListener("click", () => {
   closeShareModal();
 });
 
+document.querySelector("#closeExportBtn").addEventListener("click", () => {
+  closeExportModal();
+});
+
 document.querySelector("#closeImageBtn").addEventListener("click", () => {
   closeImageModal();
 });
@@ -1380,6 +1432,12 @@ document.querySelector("#copyShareBtn").addEventListener("click", () => {
 shareModal.addEventListener("click", (event) => {
   if (event.target === shareModal) {
     closeShareModal();
+  }
+});
+
+exportModal.addEventListener("click", (event) => {
+  if (event.target === exportModal) {
+    closeExportModal();
   }
 });
 
@@ -1403,6 +1461,7 @@ document.addEventListener("keydown", (event) => {
 
     requestCloseCaseModal();
     closeShareModal();
+    closeExportModal();
     closeAdminModal();
   }
 });
@@ -1418,7 +1477,23 @@ document.querySelectorAll("[data-share-type]").forEach((button) => {
 });
 
 document.querySelector("#exportBtn").addEventListener("click", () => {
-  exportPdf();
+  openExportModal();
+});
+
+document.querySelector("#selectAllExportBtn").addEventListener("click", () => {
+  exportCaseList.querySelectorAll("input[type='checkbox']").forEach((input) => {
+    input.checked = true;
+  });
+});
+
+document.querySelector("#clearExportBtn").addEventListener("click", () => {
+  exportCaseList.querySelectorAll("input[type='checkbox']").forEach((input) => {
+    input.checked = false;
+  });
+});
+
+document.querySelector("#downloadPdfBtn").addEventListener("click", () => {
+  exportPdf(getChosenExportCases());
 });
 
 if (new URLSearchParams(window.location.search).get("export") === "1") {

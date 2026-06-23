@@ -691,7 +691,8 @@ h1 {
   display: none;
 }
 
-.share-modal {
+.share-modal,
+.export-modal {
   position: fixed;
   inset: 0;
   z-index: 20;
@@ -1034,11 +1035,13 @@ h1 {
   margin-top: 6px;
 }
 
-.share-modal.show {
+.share-modal.show,
+.export-modal.show {
   display: flex;
 }
 
-.share-card {
+.share-card,
+.export-card {
   position: relative;
   width: min(560px, 100%);
   border-radius: 8px;
@@ -1047,12 +1050,14 @@ h1 {
   box-shadow: 0 24px 70px rgba(15, 23, 42, 0.24);
 }
 
-.share-card h2 {
+.share-card h2,
+.export-card h2 {
   margin-bottom: 8px;
   font-size: 22px;
 }
 
-.share-card p {
+.share-card p,
+.export-card p {
   color: var(--muted);
   line-height: 1.65;
 }
@@ -1073,6 +1078,13 @@ h1 {
 }
 
 .share-options {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin: 14px 0;
+}
+
+.export-tools {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 8px;
@@ -1152,16 +1164,54 @@ h1 {
   text-decoration: none;
 }
 
+.export-list {
+  display: grid;
+  max-height: 340px;
+  gap: 8px;
+  overflow: auto;
+  padding: 4px 2px;
+}
+
+.export-item {
+  display: grid;
+  grid-template-columns: 22px 1fr;
+  gap: 10px;
+  align-items: start;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+  background: #f8fafc;
+  cursor: pointer;
+}
+
+.export-item input {
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  accent-color: var(--green);
+}
+
+.export-item span {
+  display: grid;
+  gap: 4px;
+}
+
+.export-item small {
+  color: var(--muted);
+}
+
 .print-page {
   background: #ffffff;
 }
 
 .pdf-export-area {
   position: fixed;
-  left: -99999px;
+  left: 0;
   top: 0;
   width: 794px;
   background: #ffffff;
+  pointer-events: none;
+  z-index: -1;
 }
 
 .print-wrap {

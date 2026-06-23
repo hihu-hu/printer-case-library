@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>打印机售后案例库</title>
-    <link rel="stylesheet" href="styles.css?v=20260623-direct-pdf" />
+    <link rel="stylesheet" href="styles.css?v=20260623-pdf-picker" />
   </head>
   <body>
     <div class="app-shell">
@@ -192,6 +192,34 @@
       </div>
     </div>
 
+    <div class="export-modal" id="exportModal" aria-hidden="true">
+      <div class="export-card" role="dialog" aria-modal="true" aria-labelledby="exportTitle">
+        <button class="close-button" id="closeExportBtn" type="button" title="关闭">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M18 6 6 18" />
+            <path d="m6 6 12 12" />
+          </svg>
+        </button>
+        <h2 id="exportTitle">选择导出内容</h2>
+        <p>勾选你要放进 PDF 的案例，然后点“下载 PDF”。</p>
+        <div class="export-tools">
+          <button class="share-choice active" id="selectAllExportBtn" type="button">全选</button>
+          <button class="share-choice" id="clearExportBtn" type="button">取消全选</button>
+        </div>
+        <div class="export-list" id="exportCaseList"></div>
+        <div class="share-actions">
+          <button class="icon-button" id="downloadPdfBtn" type="button">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <path d="M7 10l5 5 5-5" />
+              <path d="M12 15V3" />
+            </svg>
+            下载 PDF
+          </button>
+        </div>
+      </div>
+    </div>
+
     <div class="case-modal" id="adminModal" aria-hidden="true">
       <form class="case-form admin-form" id="adminForm" role="dialog" aria-modal="true" aria-labelledby="adminFormTitle">
         <button class="close-button" id="closeAdminBtn" type="button" title="关闭">
@@ -241,6 +269,6 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.3/dist/html2pdf.bundle.min.js"></script>
     <script src="config.js"></script>
-    <script src="app.js?v=20260623-direct-pdf"></script>
+    <script src="app.js?v=20260623-pdf-picker"></script>
   </body>
 </html>
