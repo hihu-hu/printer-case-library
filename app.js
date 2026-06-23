@@ -569,6 +569,28 @@ function closeCaseModal() {
   caseModal.setAttribute("aria-hidden", "true");
 }
 
+function caseFormHasContent() {
+  if (!isModalOpen(caseModal)) return false;
+
+  const hasText = ["title", "problem"].some((name) => caseForm.elements[name]?.value.trim());
+  const hasSolutions = Array.from(solutionItems.querySelectorAll(".solution-text")).some((item) => item.value.trim());
+  const hasCustomerFiles = pendingFiles.customer.length > 0;
+  const hasSolutionFiles = Object.values(pendingFiles.solutions).some((files) => files.length > 0);
+
+  return hasText || hasSolutions || hasCustomerFiles || hasSolutionFiles;
+}
+
+function requestCloseCaseModal() {
+  if (!isModalOpen(caseModal)) return;
+
+  if (caseFormHasContent()) {
+    const confirmed = window.confirm("当前案例还没保存，确定要关闭吗？");
+    if (!confirmed) return;
+  }
+
+  closeCaseModal();
+}
+
 function openAdminModal() {
   adminForm.reset();
   adminModal.classList.add("show");
@@ -1264,7 +1286,7 @@ document.querySelector("#closeAdminBtn").addEventListener("click", () => {
 });
 
 document.querySelector("#closeCaseBtn").addEventListener("click", () => {
-  closeCaseModal();
+  requestCloseCaseModal();
 });
 
 document.querySelector("#addSolutionBtn").addEventListener("click", () => {
@@ -1318,7 +1340,7 @@ document.addEventListener("keydown", (event) => {
       return;
     }
 
-    closeCaseModal();
+    requestCloseCaseModal();
     closeShareModal();
     closeAdminModal();
   }
