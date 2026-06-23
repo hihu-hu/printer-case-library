@@ -727,6 +727,32 @@ h1 {
   box-shadow: 0 24px 70px rgba(15, 23, 42, 0.24);
 }
 
+.case-modal:has(.admin-form) {
+  align-items: center;
+}
+
+.admin-form {
+  width: min(360px, calc(100vw - 40px));
+  padding: 22px;
+}
+
+.admin-form h2 {
+  margin-bottom: 14px;
+  padding-right: 44px;
+}
+
+.admin-form label {
+  margin-bottom: 12px;
+}
+
+.admin-form .form-actions {
+  margin-top: 10px;
+}
+
+.admin-form .icon-button {
+  min-width: 96px;
+}
+
 .case-form h2 {
   margin-bottom: 8px;
   font-size: 22px;
