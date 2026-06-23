@@ -54,6 +54,10 @@ const caseFormTitle = document.querySelector("#caseFormTitle");
 const saveCaseBtn = document.querySelector("#saveCaseBtn");
 const adminModal = document.querySelector("#adminModal");
 const adminForm = document.querySelector("#adminForm");
+const confirmModal = document.querySelector("#confirmModal");
+const confirmMessage = document.querySelector("#confirmMessage");
+const confirmCancelBtn = document.querySelector("#confirmCancelBtn");
+const confirmOkBtn = document.querySelector("#confirmOkBtn");
 const solutionItems = document.querySelector("#solutionItems");
 const pendingFiles = {
   customer: [],
@@ -72,6 +76,7 @@ let isReadonlyView = false;
 let isAdminLoggedIn = !SUPABASE_READY;
 let solutionItemIndex = 0;
 let editingCaseId = null;
+let activeConfirmResolver = null;
 
 function readLinkParams() {
   const params = new URLSearchParams(window.location.search);
@@ -580,11 +585,11 @@ function caseFormHasContent() {
   return hasText || hasSolutions || hasCustomerFiles || hasSolutionFiles;
 }
 
-function requestCloseCaseModal() {
+async function requestCloseCaseModal() {
   if (!isModalOpen(caseModal)) return;
 
   if (caseFormHasContent()) {
-    const confirmed = window.confirm("当前案例还没保存，确定要关闭吗？");
+    const confirmed = await showConfirmModal("确定要关闭吗？");
     if (!confirmed) return;
   }
 
@@ -971,6 +976,26 @@ function isModalOpen(modal) {
   return modal?.classList.contains("show");
 }
 
+function closeConfirmModal(result = false) {
+  confirmModal.classList.remove("show");
+  confirmModal.setAttribute("aria-hidden", "true");
+  if (activeConfirmResolver) {
+    activeConfirmResolver(result);
+    activeConfirmResolver = null;
+  }
+}
+
+function showConfirmModal(message) {
+  confirmMessage.textContent = message;
+  confirmModal.classList.add("show");
+  confirmModal.setAttribute("aria-hidden", "false");
+  confirmCancelBtn.focus();
+
+  return new Promise((resolve) => {
+    activeConfirmResolver = resolve;
+  });
+}
+
 async function copyShareLink() {
   updateShareLink();
   shareMessageInput.select();
@@ -1317,6 +1342,14 @@ document.querySelector("#closeImageBtn").addEventListener("click", () => {
   closeImageModal();
 });
 
+confirmCancelBtn.addEventListener("click", () => {
+  closeConfirmModal(false);
+});
+
+confirmOkBtn.addEventListener("click", () => {
+  closeConfirmModal(true);
+});
+
 document.querySelector("#copyShareBtn").addEventListener("click", () => {
   copyShareLink();
 });
@@ -1335,6 +1368,11 @@ imageModal.addEventListener("click", (event) => {
 
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape") {
+    if (isModalOpen(confirmModal)) {
+      closeConfirmModal(false);
+      return;
+    }
+
     if (isModalOpen(imageModal)) {
       closeImageModal();
       return;
