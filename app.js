@@ -340,7 +340,7 @@ function renderFilePreview(file) {
     return `<video class="file-preview-media" src="${src}" controls muted></video>`;
   }
 
-  return `<img class="file-preview-media" src="${src}" alt="${name}" />`;
+  return `<img class="file-preview-media zoomable-image" src="${src}" alt="${name}" title="点击放大" />`;
 }
 
 function setPendingFiles(zoneType, solutionId, files) {
