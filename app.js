@@ -369,7 +369,6 @@ function updateFileList(zoneType, solutionId) {
         <span class="file-preview-row">
           <div class="file-preview-card">
             ${renderFilePreview(file)}
-            <strong>${index + 1}. ${mediaDisplayName(file)}</strong>
           </div>
           <button type="button" data-remove-file="${zoneType}" data-solution-id="${solutionId || ""}" data-file-index="${index}">移除</button>
         </span>
