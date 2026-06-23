@@ -945,6 +945,10 @@ function closeImageModal() {
   imagePreview.removeAttribute("src");
 }
 
+function isModalOpen(modal) {
+  return modal?.classList.contains("show");
+}
+
 async function copyShareLink() {
   updateShareLink();
   shareMessageInput.select();
@@ -1309,9 +1313,13 @@ imageModal.addEventListener("click", (event) => {
 
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape") {
+    if (isModalOpen(imageModal)) {
+      closeImageModal();
+      return;
+    }
+
     closeCaseModal();
     closeShareModal();
-    closeImageModal();
     closeAdminModal();
   }
 });
