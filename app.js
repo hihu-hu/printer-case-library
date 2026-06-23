@@ -2,7 +2,11 @@ const cases = [];
 
 const MODEL_ORDER = ["DK-110", "GM-X", "GM-I", "GM-H", "GM-T", "DK-80", "其他"];
 const STORAGE_KEY = "printer_case_library_saved_cases";
+const ADMIN_SESSION_KEY = "printer_case_library_admin_session";
+const ADMIN_USERNAME_KEY = "printer_case_library_admin_username";
+const ADMIN_PASSWORD_KEY = "printer_case_library_admin_password";
 const SUPABASE_CONFIG = window.SUPABASE_CONFIG || {};
+const ADMIN_LOGIN = window.ADMIN_LOGIN || {};
 const SUPABASE_READY = Boolean(SUPABASE_CONFIG.url && SUPABASE_CONFIG.anonKey && window.supabase);
 const supabaseClient = SUPABASE_READY ? window.supabase.createClient(SUPABASE_CONFIG.url, SUPABASE_CONFIG.anonKey) : null;
 
@@ -48,6 +52,8 @@ const caseModal = document.querySelector("#caseModal");
 const caseForm = document.querySelector("#caseForm");
 const caseFormTitle = document.querySelector("#caseFormTitle");
 const saveCaseBtn = document.querySelector("#saveCaseBtn");
+const adminModal = document.querySelector("#adminModal");
+const adminForm = document.querySelector("#adminForm");
 const solutionItems = document.querySelector("#solutionItems");
 const pendingFiles = {
   customer: [],
@@ -175,7 +181,11 @@ async function saveCaseToStorage(item) {
     return;
   }
 
-  const { error } = await supabaseClient.from("printer_cases").upsert(caseToRow(item));
+  const { error } = await supabaseClient.rpc("save_printer_case", {
+    case_data: caseToRow(item),
+    admin_username: sessionStorage.getItem(ADMIN_USERNAME_KEY) || "",
+    admin_password: sessionStorage.getItem(ADMIN_PASSWORD_KEY) || "",
+  });
   if (error) throw error;
 }
 
@@ -185,20 +195,38 @@ async function deleteCaseFromStorage(caseId) {
     return;
   }
 
-  const { error } = await supabaseClient.from("printer_cases").delete().eq("id", caseId);
+  const { error } = await supabaseClient.rpc("delete_printer_case", {
+    case_id: caseId,
+    admin_username: sessionStorage.getItem(ADMIN_USERNAME_KEY) || "",
+    admin_password: sessionStorage.getItem(ADMIN_PASSWORD_KEY) || "",
+  });
   if (error) throw error;
 }
 
 async function refreshSession() {
-  if (!isCloudMode()) {
-    isAdminLoggedIn = true;
-    updateAdminUi();
-    return;
+  isAdminLoggedIn =
+    !isCloudMode() ||
+    (localStorage.getItem(ADMIN_SESSION_KEY) === "1" &&
+      Boolean(sessionStorage.getItem(ADMIN_USERNAME_KEY)) &&
+      Boolean(sessionStorage.getItem(ADMIN_PASSWORD_KEY)));
+  updateAdminUi();
+}
+
+async function checkAdminPassword(username, password) {
+  if (!isCloudMode()) return true;
+  if (!ADMIN_LOGIN.username || username !== ADMIN_LOGIN.username) return false;
+
+  const { data, error } = await supabaseClient.rpc("verify_admin_login", {
+    admin_username: username,
+    admin_password: password,
+  });
+
+  if (error) {
+    console.warn("管理员账号验证失败", error);
+    return false;
   }
 
-  const { data } = await supabaseClient.auth.getSession();
-  isAdminLoggedIn = Boolean(data.session);
-  updateAdminUi();
+  return data === true;
 }
 
 function parseStepLines(text) {
@@ -263,28 +291,7 @@ function readFileAsDataUrl(file) {
 }
 
 async function uploadFileAsMedia(file) {
-  if (!isCloudMode()) return readFileAsDataUrl(file);
-
-  const filePath = `${Date.now()}-${Math.random().toString(36).slice(2)}-${safeFileName(file.name)}`;
-  const { error } = await supabaseClient.storage
-    .from("case-media")
-    .upload(filePath, file, {
-      cacheControl: "3600",
-      contentType: file.type,
-      upsert: false,
-    });
-
-  if (error) throw error;
-
-  const { data } = supabaseClient.storage.from("case-media").getPublicUrl(filePath);
-  return {
-    type: file.type.startsWith("video/") ? "video" : "image",
-    title: file.name,
-    desc: file.type.startsWith("video/") ? "上传的视频资料" : "上传的图片资料",
-    fileName: file.name,
-    storagePath: filePath,
-    src: data.publicUrl,
-  };
+  return readFileAsDataUrl(file);
 }
 
 async function readFilesAsMedia(fileList) {
@@ -537,6 +544,18 @@ function openCaseModal(item = null) {
 function closeCaseModal() {
   caseModal.classList.remove("show");
   caseModal.setAttribute("aria-hidden", "true");
+}
+
+function openAdminModal() {
+  adminForm.reset();
+  adminModal.classList.add("show");
+  adminModal.setAttribute("aria-hidden", "false");
+  adminForm.elements.username.focus();
+}
+
+function closeAdminModal() {
+  adminModal.classList.remove("show");
+  adminModal.setAttribute("aria-hidden", "true");
 }
 
 function buildCaseFromForm(id, existingCase = {}) {
@@ -1180,7 +1199,9 @@ adminLoginBtn?.addEventListener("click", async () => {
   }
 
   if (isAdminLoggedIn) {
-    await supabaseClient.auth.signOut();
+    localStorage.removeItem(ADMIN_SESSION_KEY);
+    sessionStorage.removeItem(ADMIN_USERNAME_KEY);
+    sessionStorage.removeItem(ADMIN_PASSWORD_KEY);
     isAdminLoggedIn = false;
     updateAdminUi();
     renderCaseList();
@@ -1188,23 +1209,31 @@ adminLoginBtn?.addEventListener("click", async () => {
     return;
   }
 
-  const email = window.prompt("请输入管理员邮箱，用来接收登录邮件：");
-  if (!email) return;
+  openAdminModal();
+});
 
-  const { error } = await supabaseClient.auth.signInWithOtp({
-    email: email.trim(),
-    options: {
-      emailRedirectTo: window.location.href.split("#")[0],
-    },
-  });
-
-  if (error) {
-    console.warn("管理员登录失败", error);
-    showToast("登录邮件发送失败，请检查 Supabase 邮箱登录设置。");
+adminForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const username = adminForm.elements.username.value.trim();
+  const password = adminForm.elements.password.value;
+  const passed = await checkAdminPassword(username.trim(), password);
+  if (!passed) {
+    showToast("账号或密码不对。");
     return;
   }
 
-  showToast("登录邮件已发送，请去邮箱点登录链接。");
+  localStorage.setItem(ADMIN_SESSION_KEY, "1");
+  sessionStorage.setItem(ADMIN_USERNAME_KEY, username.trim());
+  sessionStorage.setItem(ADMIN_PASSWORD_KEY, password);
+  isAdminLoggedIn = true;
+  updateAdminUi();
+  renderCaseList();
+  closeAdminModal();
+  showToast("已进入管理模式。");
+});
+
+document.querySelector("#closeAdminBtn").addEventListener("click", () => {
+  closeAdminModal();
 });
 
 document.querySelector("#closeCaseBtn").addEventListener("click", () => {
@@ -1224,6 +1253,12 @@ caseForm.addEventListener("submit", (event) => {
 caseModal.addEventListener("click", (event) => {
   if (event.target === caseModal) {
     closeCaseModal();
+  }
+});
+
+adminModal.addEventListener("click", (event) => {
+  if (event.target === adminModal) {
+    closeAdminModal();
   }
 });
 
@@ -1259,6 +1294,7 @@ document.addEventListener("keydown", (event) => {
   if (event.key === "Escape") {
     closeShareModal();
     closeImageModal();
+    closeAdminModal();
   }
 });
 
@@ -1288,11 +1324,6 @@ async function startApp() {
   await refreshSession();
 
   if (isCloudMode()) {
-    supabaseClient.auth.onAuthStateChange((_event, session) => {
-      isAdminLoggedIn = Boolean(session);
-      updateAdminUi();
-      renderCaseList();
-    });
     await loadCloudCases();
   }
 

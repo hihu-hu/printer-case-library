@@ -192,6 +192,29 @@
       </div>
     </div>
 
+    <div class="case-modal" id="adminModal" aria-hidden="true">
+      <form class="case-form admin-form" id="adminForm" role="dialog" aria-modal="true" aria-labelledby="adminFormTitle">
+        <button class="close-button" id="closeAdminBtn" type="button" title="关闭">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M18 6 6 18" />
+            <path d="m6 6 12 12" />
+          </svg>
+        </button>
+        <h2 id="adminFormTitle">管理员登录</h2>
+        <label>
+          <span>账号</span>
+          <input name="username" type="text" autocomplete="username" required />
+        </label>
+        <label>
+          <span>密码</span>
+          <input name="password" type="password" autocomplete="current-password" required />
+        </label>
+        <div class="form-actions">
+          <button class="icon-button" type="submit">登录</button>
+        </div>
+      </form>
+    </div>
+
     <div class="image-modal" id="imageModal" aria-hidden="true">
       <button class="image-close" id="closeImageBtn" type="button" title="关闭">
         <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -206,6 +229,6 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="config.js"></script>
-    <script src="app.js?v=20260622-cloud"></script>
+    <script src="app.js?v=20260623-admin-login"></script>
   </body>
 </html>
