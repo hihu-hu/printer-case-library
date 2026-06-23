@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>打印机售后案例库</title>
+    <link rel="stylesheet" href="styles.css?v=20260622-solutions" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="案例筛选">
+        <div class="brand">
+          <div class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24" role="img">
+              <path d="M7 7V3h10v4" />
+              <path d="M6 17H4a2 2 0 0 1-2-2v-4a3 3 0 0 1 3-3h14a3 3 0 0 1 3 3v4a2 2 0 0 1-2 2h-2" />
+              <path d="M7 14h10v7H7z" />
+              <path d="M17 11h.01" />
+            </svg>
+          </div>
+          <div>
+            <strong>打印机售后案例库</strong>
+            <span>问题现象、图片视频、处理方案统一保存</span>
+          </div>
+        </div>
+
+        <label class="search-box">
+          <span>查找案例</span>
+          <input id="searchInput" type="search" placeholder="输入机型、故障、关键词" />
+        </label>
+
+        <div class="filter-block">
+          <p>机型</p>
+          <div class="filter-list compact" id="modelFilters"></div>
+        </div>
+
+        <div class="sidebar-note">
+          <strong>后续可升级</strong>
+          <span>把案例保存到表格或后台，支持多人录入、按机型导出、生成分享链接。</span>
+        </div>
+      </aside>
+
+      <main class="main">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">售后知识整理</p>
+            <h1>客户问题案例总览</h1>
+          </div>
+          <div class="actions">
+            <button class="icon-button" id="addCaseBtn" type="button" title="新增案例">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 5v14" />
+                <path d="M5 12h14" />
+              </svg>
+              新增案例
+            </button>
+            <button class="icon-button secondary" id="shareBtn" type="button" title="生成当前案例链接">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M10 13a5 5 0 0 0 7.1 0l2-2a5 5 0 0 0-7.1-7.1l-1.1 1.1" />
+                <path d="M14 11a5 5 0 0 0-7.1 0l-2 2A5 5 0 0 0 12 20.1l1.1-1.1" />
+              </svg>
+              生成链接
+            </button>
+            <button class="icon-button secondary" id="exportBtn" type="button" title="导出 PDF">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <path d="M7 10l5 5 5-5" />
+                <path d="M12 15V3" />
+              </svg>
+              导出 PDF
+            </button>
+            <button class="icon-button secondary admin-login-button" id="adminLoginBtn" type="button" title="管理员登录">
+              管理员登录
+            </button>
+          </div>
+        </header>
+
+        <section class="content-grid">
+          <div class="case-list-panel">
+            <div class="panel-heading">
+              <h2>案例列表</h2>
+              <span id="resultCount">0 条</span>
+            </div>
+            <div id="caseList" class="case-list" aria-live="polite"></div>
+          </div>
+
+          <article class="case-detail" id="caseDetail" aria-live="polite"></article>
+        </section>
+      </main>
+    </div>
+
+    <div class="case-modal" id="caseModal" aria-hidden="true">
+      <form class="case-form" id="caseForm" role="dialog" aria-modal="true" aria-labelledby="caseFormTitle">
+        <button class="close-button" id="closeCaseBtn" type="button" title="关闭">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M18 6 6 18" />
+            <path d="m6 6 12 12" />
+          </svg>
+        </button>
+        <h2 id="caseFormTitle">新增案例</h2>
+        <p>可以填写文字，也可以上传图片或视频。当前是本机测试保存，适合先放小图片、小视频试流程。</p>
+
+        <div class="form-grid">
+          <label>
+            <span>案例标题</span>
+            <input name="title" type="text" required />
+          </label>
+          <label>
+            <span>机型</span>
+            <select name="model" required>
+              <option value="DK-110">DK-110</option>
+              <option value="GM-X">GM-X</option>
+              <option value="GM-I">GM-I</option>
+              <option value="GM-H">GM-H</option>
+              <option value="GM-T">GM-T</option>
+              <option value="DK-80">DK-80</option>
+              <option value="其他">其他</option>
+            </select>
+          </label>
+          <label>
+            <span>频率标签</span>
+            <select name="level">
+              <option value="常见">常见</option>
+              <option value="高频">高频</option>
+              <option value="中频">中频</option>
+              <option value="低频">低频</option>
+            </select>
+          </label>
+        </div>
+
+        <label>
+          <span>问题现象</span>
+          <textarea name="problem" required></textarea>
+        </label>
+
+        <label class="file-field">
+          <span>问题现象图片/视频</span>
+          <div class="drop-zone" data-file-zone="customer" tabindex="0">
+            <input name="customerFiles" type="file" accept="image/*,video/*" multiple />
+            <strong>拖入图片/视频，或点这里选择</strong>
+            <small>也可以复制截图后，点一下这里再粘贴。</small>
+          </div>
+          <div class="file-list" id="customerFileList"></div>
+        </label>
+
+        <div class="solution-builder">
+          <div class="solution-builder-head">
+            <span>排查方案</span>
+          </div>
+          <div class="solution-items" id="solutionItems"></div>
+          <button class="add-solution-button" id="addSolutionBtn" type="button">+ 新增一条</button>
+        </div>
+
+        <div class="form-actions">
+          <button class="icon-button" id="saveCaseBtn" type="submit">保存案例</button>
+        </div>
+      </form>
+    </div>
+
+    <div class="share-modal" id="shareModal" aria-hidden="true">
+      <div class="share-card" role="dialog" aria-modal="true" aria-labelledby="shareTitle">
+        <button class="close-button" id="closeShareBtn" type="button" title="关闭">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M18 6 6 18" />
+            <path d="m6 6 12 12" />
+          </svg>
+        </button>
+        <h2 id="shareTitle">生成查看链接</h2>
+        <p>复制链接发给别人。注意：如果链接里是 localhost，只能在你这台电脑上打开；要让外地同事或客户打开，需要把网页放到线上服务器。</p>
+        <div class="share-options">
+          <button class="share-choice active" type="button" data-share-type="case">当前案例</button>
+          <button class="share-choice" type="button" data-share-type="all">全部案例库</button>
+        </div>
+        <label class="share-link-box">
+          <span>链接</span>
+          <input id="shareLinkInput" type="text" readonly />
+        </label>
+        <label class="share-link-box share-message-box">
+          <span>发送内容</span>
+          <textarea id="shareMessageInput" readonly></textarea>
+        </label>
+        <div class="share-actions">
+          <button class="icon-button" id="copyShareBtn" type="button" title="复制链接">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <rect x="9" y="9" width="13" height="13" rx="2" />
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+            </svg>
+            复制发送内容
+          </button>
+          <a class="open-link" id="openShareLink" href="#" target="_blank" rel="noreferrer">打开看看</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="image-modal" id="imageModal" aria-hidden="true">
+      <button class="image-close" id="closeImageBtn" type="button" title="关闭">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M18 6 6 18" />
+          <path d="m6 6 12 12" />
+        </svg>
+      </button>
+      <img id="imagePreview" alt="图片预览" />
+    </div>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="config.js"></script>
+    <script src="app.js?v=20260622-cloud"></script>
+  </body>
+</html>
