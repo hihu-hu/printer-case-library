@@ -1055,7 +1055,7 @@ function renderPrintMedia(mediaList) {
   `;
 }
 
-function buildExportHtml() {
+function buildExportContent() {
   const exportDate = new Date().toLocaleString("zh-CN", {
     year: "numeric",
     month: "2-digit",
@@ -1109,6 +1109,19 @@ function buildExportHtml() {
     .join("");
 
   return `
+    <main class="print-wrap">
+      <header class="print-title">
+        <p>打印机售后案例库</p>
+        <h1>全部案例导出</h1>
+        <span>共 ${cases.length} 条案例 / 导出时间：${exportDate}</span>
+      </header>
+      ${caseCards}
+    </main>
+  `;
+}
+
+function buildExportHtml() {
+  return `
     <!doctype html>
     <html lang="zh-CN">
       <head>
@@ -1118,40 +1131,51 @@ function buildExportHtml() {
         <link rel="stylesheet" href="styles.css" />
       </head>
       <body class="print-page">
-        <main class="print-wrap">
-          <header class="print-title">
-            <p>打印机售后案例库</p>
-            <h1>全部案例导出</h1>
-            <span>共 ${cases.length} 条案例 / 导出时间：${exportDate}</span>
-          </header>
-          ${caseCards}
-        </main>
-        <script>
-          window.addEventListener("load", () => {
-            setTimeout(() => window.print(), 300);
-          });
-        </script>
+        ${buildExportContent()}
       </body>
     </html>
   `;
 }
 
-function exportPdf() {
+function getPdfFileName() {
+  const dateText = new Date().toISOString().slice(0, 10);
+  return `打印机故障案例-${dateText}.pdf`;
+}
+
+async function exportPdf() {
   if (!cases.length) {
     showToast("还没有案例，先新增案例后再导出 PDF。");
     return;
   }
 
-  const exportWindow = window.open("", "_blank");
-  if (!exportWindow) {
-    showToast("浏览器拦截了新窗口，请允许弹出窗口后再点一次导出。");
+  if (typeof window.html2pdf !== "function") {
+    showToast("PDF 工具还没加载好，请等几秒再点一次。");
     return;
   }
 
-  exportWindow.document.open();
-  exportWindow.document.write(buildExportHtml());
-  exportWindow.document.close();
-  showToast("已打开导出版页面。在弹出的打印窗口里选择 WPS PDF 或“存为 PDF”即可。");
+  const exportNode = document.createElement("div");
+  exportNode.className = "pdf-export-area print-page";
+  exportNode.innerHTML = buildExportContent();
+  document.body.appendChild(exportNode);
+
+  const options = {
+    margin: 8,
+    filename: getPdfFileName(),
+    image: { type: "jpeg", quality: 0.95 },
+    html2canvas: { scale: 2, useCORS: true },
+    jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
+    pagebreak: { mode: ["css", "legacy"] },
+  };
+
+  try {
+    showToast("正在生成 PDF，请稍等。");
+    await window.html2pdf().set(options).from(exportNode).save();
+    showToast("PDF 已下载，可以用 WPS 打开。");
+  } catch (error) {
+    showToast("PDF 生成失败，请刷新页面后再试。");
+  } finally {
+    exportNode.remove();
+  }
 }
 
 function showToast(message) {

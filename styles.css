@@ -1156,6 +1156,14 @@ h1 {
   background: #ffffff;
 }
 
+.pdf-export-area {
+  position: fixed;
+  left: -99999px;
+  top: 0;
+  width: 794px;
+  background: #ffffff;
+}
+
 .print-wrap {
   width: min(940px, calc(100% - 40px));
   margin: 0 auto;
