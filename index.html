@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>打印机售后案例库</title>
-    <link rel="stylesheet" href="styles.css?v=20260623-compact-preview" />
+    <link rel="stylesheet" href="styles.css?v=20260623-dropzone-only" />
   </head>
   <body>
     <div class="app-shell">
@@ -133,7 +133,7 @@
           <textarea name="problem" required></textarea>
         </label>
 
-        <label class="file-field">
+        <div class="file-field">
           <span>问题现象图片/视频</span>
           <div class="drop-zone" data-file-zone="customer" tabindex="0">
             <input name="customerFiles" type="file" accept="image/*,video/*" multiple />
@@ -141,7 +141,7 @@
             <small>也可以复制截图后，点一下这里再粘贴。</small>
           </div>
           <div class="file-list" id="customerFileList"></div>
-        </label>
+        </div>
 
         <div class="solution-builder">
           <div class="solution-builder-head">
@@ -229,6 +229,6 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="config.js"></script>
-    <script src="app.js?v=20260623-compact-preview"></script>
+    <script src="app.js?v=20260623-dropzone-only"></script>
   </body>
 </html>

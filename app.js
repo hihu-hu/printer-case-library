@@ -469,7 +469,7 @@ function addSolutionItem(text = "", mediaFiles = []) {
       <span>方案说明</span>
       <textarea class="solution-text" required>${text}</textarea>
     </label>
-    <label class="file-field">
+    <div class="file-field">
       <span>方案图片/视频</span>
       <div class="drop-zone compact-zone" data-file-zone="solution" data-solution-id="${id}" tabindex="0">
         <input type="file" accept="image/*,video/*" />
@@ -477,7 +477,7 @@ function addSolutionItem(text = "", mediaFiles = []) {
         <small>也可以复制截图后，点一下这里再粘贴。</small>
       </div>
       <div class="file-list"></div>
-    </label>
+    </div>
   `;
 
   solutionItems.appendChild(item);

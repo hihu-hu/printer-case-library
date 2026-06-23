@@ -776,7 +776,14 @@ h1 {
   margin-bottom: 12px;
 }
 
-.case-form label span {
+.file-field {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.case-form label span,
+.file-field > span {
   color: var(--muted);
   font-size: 13px;
   font-weight: 700;
