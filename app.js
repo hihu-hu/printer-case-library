@@ -1250,12 +1250,6 @@ caseForm.addEventListener("submit", (event) => {
   saveCaseFromForm();
 });
 
-caseModal.addEventListener("click", (event) => {
-  if (event.target === caseModal) {
-    closeCaseModal();
-  }
-});
-
 adminModal.addEventListener("click", (event) => {
   if (event.target === adminModal) {
     closeAdminModal();
@@ -1292,6 +1286,7 @@ imageModal.addEventListener("click", (event) => {
 
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape") {
+    closeCaseModal();
     closeShareModal();
     closeImageModal();
     closeAdminModal();
