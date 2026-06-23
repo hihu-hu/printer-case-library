@@ -322,6 +322,27 @@ function mediaDisplayName(file) {
   return file?.name || file?.fileName || file?.title || "已上传文件";
 }
 
+function filePreviewSrc(file) {
+  if (!file) return "";
+  if (file.src) return file.src;
+  if (!file.previewUrl) {
+    file.previewUrl = URL.createObjectURL(file);
+  }
+  return file.previewUrl;
+}
+
+function renderFilePreview(file) {
+  const src = filePreviewSrc(file);
+  const name = mediaDisplayName(file);
+  const type = file?.type || "";
+
+  if (type.startsWith("video/") || file?.type === "video") {
+    return `<video class="file-preview-media" src="${src}" controls muted></video>`;
+  }
+
+  return `<img class="file-preview-media" src="${src}" alt="${name}" />`;
+}
+
 function setPendingFiles(zoneType, solutionId, files) {
   if (zoneType === "customer") {
     pendingFiles.customer = files;
@@ -345,8 +366,11 @@ function updateFileList(zoneType, solutionId) {
   list.innerHTML = files
     .map(
       (file, index) => `
-        <span>
-          ${index + 1}. ${mediaDisplayName(file)}
+        <span class="file-preview-row">
+          <div class="file-preview-card">
+            ${renderFilePreview(file)}
+            <strong>${index + 1}. ${mediaDisplayName(file)}</strong>
+          </div>
           <button type="button" data-remove-file="${zoneType}" data-solution-id="${solutionId || ""}" data-file-index="${index}">移除</button>
         </span>
       `

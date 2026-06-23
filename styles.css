@@ -863,16 +863,39 @@ h1 {
 
 .file-list span {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 10px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  padding: 8px 10px;
+  padding: 10px;
   background: #ffffff;
 }
 
+.file-preview-card {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.file-preview-card strong {
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.file-preview-media {
+  width: min(280px, 100%);
+  max-height: 180px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f8fafc;
+  object-fit: contain;
+}
+
 .file-list button {
+  flex: 0 0 auto;
   border: 0;
   border-radius: 8px;
   padding: 4px 8px;
