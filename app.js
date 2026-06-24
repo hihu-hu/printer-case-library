@@ -298,6 +298,44 @@ function readFileAsDataUrl(file) {
   });
 }
 
+function createUploadMediaItem(file) {
+  const isVideo = file.type.startsWith("video/");
+  return {
+    type: isVideo ? "video" : "image",
+    title: file.name,
+    desc: isVideo ? "上传的视频资料" : "上传的图片资料",
+    fileName: file.name,
+    previewUrl: URL.createObjectURL(file),
+    uploadProgress: 0,
+    uploadStatus: "uploading",
+  };
+}
+
+function processMediaFile(file, mediaItem, zoneType, solutionId) {
+  const reader = new FileReader();
+
+  reader.onprogress = (event) => {
+    if (!event.lengthComputable) return;
+    mediaItem.uploadProgress = Math.max(1, Math.round((event.loaded / event.total) * 100));
+    updateFileList(zoneType, solutionId);
+  };
+
+  reader.onload = () => {
+    mediaItem.src = reader.result;
+    mediaItem.uploadProgress = 100;
+    mediaItem.uploadStatus = "ready";
+    updateFileList(zoneType, solutionId);
+  };
+
+  reader.onerror = () => {
+    mediaItem.uploadStatus = "error";
+    mediaItem.uploadProgress = 0;
+    updateFileList(zoneType, solutionId);
+  };
+
+  reader.readAsDataURL(file);
+}
+
 async function uploadFileAsMedia(file) {
   return readFileAsDataUrl(file);
 }
@@ -307,6 +345,8 @@ async function readFilesAsMedia(fileList) {
   return Promise.all(
     files.map((file) => {
       if (file && file.src) return file;
+      if (file?.uploadStatus === "uploading") throw new Error("文件还在上传");
+      if (file?.uploadStatus === "error") throw new Error("文件上传失败");
       return uploadFileAsMedia(file);
     })
   );
@@ -351,6 +391,26 @@ function renderFilePreview(file) {
   return `<img class="file-preview-media zoomable-image" src="${src}" alt="${name}" title="点击放大" />`;
 }
 
+function renderUploadProgress(file) {
+  if (!file?.uploadStatus) return "";
+
+  if (file.uploadStatus === "ready") {
+    return `<div class="upload-progress done">上传完成</div>`;
+  }
+
+  if (file.uploadStatus === "error") {
+    return `<div class="upload-progress error">上传失败</div>`;
+  }
+
+  const progress = Math.max(0, Math.min(100, file.uploadProgress || 0));
+  return `
+    <div class="upload-progress">
+      <span>正在上传 ${progress}%</span>
+      <i style="width: ${progress}%"></i>
+    </div>
+  `;
+}
+
 function setPendingFiles(zoneType, solutionId, files) {
   if (zoneType === "customer") {
     pendingFiles.customer = files;
@@ -377,6 +437,7 @@ function updateFileList(zoneType, solutionId) {
         <span class="file-preview-row">
           <div class="file-preview-card">
             ${renderFilePreview(file)}
+            ${renderUploadProgress(file)}
           </div>
           <button type="button" data-remove-file="${zoneType}" data-solution-id="${solutionId || ""}" data-file-index="${index}">移除</button>
         </span>
@@ -394,23 +455,38 @@ function addFilesToZone(zone, files) {
 
   const zoneType = typeof zone === "string" ? zone : zone.dataset.fileZone;
   const solutionId = typeof zone === "string" ? "" : zone.dataset.solutionId;
+  const pendingMedia = mediaFiles.map(createUploadMediaItem);
 
   if (zoneType === "solution") {
-    setPendingFiles(zoneType, solutionId, [...getPendingFiles(zoneType, solutionId), ...mediaFiles]);
+    setPendingFiles(zoneType, solutionId, [...getPendingFiles(zoneType, solutionId), ...pendingMedia]);
     updateFileList(zoneType, solutionId);
-    showToast(`已添加 ${mediaFiles.length} 个文件。`);
+    mediaFiles.forEach((file, index) => processMediaFile(file, pendingMedia[index], zoneType, solutionId));
+    showToast(`已添加 ${mediaFiles.length} 个文件，正在上传。`);
     return;
   }
 
-  pendingFiles.customer.push(...mediaFiles);
+  pendingFiles.customer.push(...pendingMedia);
   updateFileList(zoneType, solutionId);
-  showToast(`已添加 ${mediaFiles.length} 个文件。`);
+  mediaFiles.forEach((file, index) => processMediaFile(file, pendingMedia[index], zoneType, solutionId));
+  showToast(`已添加 ${mediaFiles.length} 个文件，正在上传。`);
 }
 
 function resetPendingFiles() {
   pendingFiles.customer = [];
   pendingFiles.solutions = {};
   updateFileList("customer");
+}
+
+function allPendingMedia() {
+  return [...pendingFiles.customer, ...Object.values(pendingFiles.solutions).flat()];
+}
+
+function hasUploadingMedia() {
+  return allPendingMedia().some((file) => file.uploadStatus === "uploading");
+}
+
+function hasFailedMedia() {
+  return allPendingMedia().some((file) => file.uploadStatus === "error");
 }
 
 function setupDropZone(zone) {
@@ -634,11 +710,19 @@ async function saveCaseFromForm() {
   if (!canEditCases()) return;
   if (isSavingCase) return;
 
+  if (hasUploadingMedia()) {
+    showToast("视频或图片还在上传，请等上传完成后再保存。");
+    return;
+  }
+
+  if (hasFailedMedia()) {
+    showToast("有文件上传失败，请移除后重新上传。");
+    return;
+  }
+
   const originalButtonText = saveCaseBtn.textContent;
   isSavingCase = true;
   saveCaseBtn.disabled = true;
-  saveCaseBtn.textContent = "保存中...";
-  showToast("正在保存案例，请稍等。");
 
   try {
     const customerMedia = await readFilesAsMedia(pendingFiles.customer);

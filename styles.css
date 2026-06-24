@@ -961,6 +961,40 @@ h1 {
   cursor: zoom-in;
 }
 
+.upload-progress {
+  position: relative;
+  height: 20px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e2e8f0;
+  color: var(--green-deep);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 20px;
+  text-align: center;
+}
+
+.upload-progress span {
+  position: relative;
+  z-index: 1;
+}
+
+.upload-progress i {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: #bfdbfe;
+}
+
+.upload-progress.done {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.upload-progress.error {
+  background: #fee2e2;
+  color: var(--red);
+}
+
 .file-list button {
   border: 0;
   border-radius: 8px;
