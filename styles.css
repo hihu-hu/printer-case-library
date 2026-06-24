@@ -1334,9 +1334,17 @@ h1 {
 }
 
 .print-case-head {
+  break-inside: avoid;
+  page-break-inside: avoid;
   border-bottom: 1px solid var(--line);
   margin-bottom: 14px;
   padding-bottom: 12px;
+}
+
+.print-case section,
+.print-case li {
+  break-inside: avoid;
+  page-break-inside: avoid;
 }
 
 .print-case-head p {

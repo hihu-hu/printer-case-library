@@ -1620,6 +1620,97 @@ function getPdfConstructor() {
   return window.jspdf?.jsPDF || window.jsPDF || null;
 }
 
+function getExportElementBoxes(exportNode, selector) {
+  const rootRect = exportNode.getBoundingClientRect();
+  return Array.from(exportNode.querySelectorAll(selector))
+    .map((element) => {
+      const rect = element.getBoundingClientRect();
+      return {
+        top: Math.max(0, rect.top - rootRect.top),
+        bottom: Math.max(0, rect.bottom - rootRect.top),
+      };
+    })
+    .filter((box) => box.bottom - box.top > 4)
+    .sort((a, b) => a.top - b.top);
+}
+
+function findSafePageBottom(topCss, targetCss, pageCssHeight, contentHeight, breakBoxes, keepTogetherBoxes) {
+  if (targetCss >= contentHeight - 2) return contentHeight;
+
+  const minPageBottom = topCss + pageCssHeight * 0.55;
+  let latestSafeBottom = Math.min(targetCss - 10, contentHeight);
+
+  const cutBox = keepTogetherBoxes.find((box) => {
+    const boxHeight = box.bottom - box.top;
+    if (boxHeight > pageCssHeight * 0.88) return false;
+    return targetCss > box.top + 10 && targetCss < box.bottom - 10;
+  });
+
+  if (cutBox) {
+    latestSafeBottom = Math.min(latestSafeBottom, cutBox.top - 10);
+  }
+
+  const candidates = breakBoxes
+    .map((box) => box.bottom)
+    .filter((bottom) => bottom > minPageBottom && bottom <= latestSafeBottom);
+
+  if (candidates.length) return Math.max(...candidates);
+  if (latestSafeBottom > minPageBottom) return latestSafeBottom;
+  return Math.min(targetCss, contentHeight);
+}
+
+function getCanvasPageSlices(exportNode, canvas, canvasPageHeight) {
+  const contentHeight = exportNode.scrollHeight;
+  const cssToCanvas = canvas.height / contentHeight;
+  const pageCssHeight = canvasPageHeight / cssToCanvas;
+  const breakBoxes = getExportElementBoxes(
+    exportNode,
+    ".print-title, .print-case-head, .print-case section, .print-case li, .print-case p, .print-case h3, .print-media, .print-media figure"
+  );
+  const keepTogetherBoxes = getExportElementBoxes(
+    exportNode,
+    ".print-case-head, .print-case section, .print-case li, .print-media, .print-media figure, .print-video-placeholder"
+  );
+  const slices = [];
+  let sourceY = 0;
+
+  while (sourceY < canvas.height - 1) {
+    const topCss = sourceY / cssToCanvas;
+    const targetCss = Math.min(topCss + pageCssHeight, contentHeight);
+    const safeBottomCss = findSafePageBottom(
+      topCss,
+      targetCss,
+      pageCssHeight,
+      contentHeight,
+      breakBoxes,
+      keepTogetherBoxes
+    );
+    let nextSourceY = Math.round(safeBottomCss * cssToCanvas);
+
+    if (nextSourceY <= sourceY + 20) {
+      nextSourceY = Math.min(sourceY + canvasPageHeight, canvas.height);
+    }
+
+    slices.push({
+      sourceY,
+      height: Math.min(nextSourceY - sourceY, canvas.height - sourceY),
+    });
+    sourceY = nextSourceY;
+  }
+
+  return slices;
+}
+
+function getExportCanvasScale(exportNode) {
+  const idealScale = 2.15;
+  const minScale = 1.65;
+  const maxCanvasPixels = 26000000;
+  const contentPixels = exportNode.scrollWidth * exportNode.scrollHeight;
+  if (!contentPixels) return idealScale;
+
+  return Math.max(minScale, Math.min(idealScale, Math.sqrt(maxCanvasPixels / contentPixels)));
+}
+
 async function ensureCanvasTool() {
   if (typeof window.html2canvas === "function") return window.html2canvas;
   if (canvasToolLoader) return canvasToolLoader;
@@ -1659,10 +1750,11 @@ async function buildCanvasPdf(exportCases) {
   try {
     await waitForExportImages(exportNode);
     await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    const canvasScale = getExportCanvasScale(exportNode);
 
     const canvas = await html2canvas(exportNode, {
       backgroundColor: "#ffffff",
-      scale: 1.4,
+      scale: canvasScale,
       useCORS: true,
       allowTaint: true,
       logging: false,
@@ -1677,26 +1769,21 @@ async function buildCanvasPdf(exportCases) {
     const pageWidth = 210;
     const pageHeight = 297;
     const canvasPageHeight = Math.floor((canvas.width * pageHeight) / pageWidth);
-    let sourceY = 0;
-    let pageIndex = 0;
+    const pageSlices = getCanvasPageSlices(exportNode, canvas, canvasPageHeight);
 
-    while (sourceY < canvas.height) {
-      const sliceHeight = Math.min(canvasPageHeight, canvas.height - sourceY);
+    pageSlices.forEach((slice, pageIndex) => {
       const pageCanvas = document.createElement("canvas");
       pageCanvas.width = canvas.width;
-      pageCanvas.height = sliceHeight;
+      pageCanvas.height = slice.height;
       const pageContext = pageCanvas.getContext("2d");
       pageContext.fillStyle = "#ffffff";
       pageContext.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
-      pageContext.drawImage(canvas, 0, sourceY, canvas.width, sliceHeight, 0, 0, canvas.width, sliceHeight);
+      pageContext.drawImage(canvas, 0, slice.sourceY, canvas.width, slice.height, 0, 0, canvas.width, slice.height);
 
       if (pageIndex > 0) doc.addPage();
-      const imageHeight = (sliceHeight * pageWidth) / canvas.width;
-      doc.addImage(pageCanvas.toDataURL("image/jpeg", 0.9), "JPEG", 0, 0, pageWidth, imageHeight);
-
-      sourceY += sliceHeight;
-      pageIndex += 1;
-    }
+      const imageHeight = (slice.height * pageWidth) / canvas.width;
+      doc.addImage(pageCanvas.toDataURL("image/jpeg", 0.98), "JPEG", 0, 0, pageWidth, imageHeight);
+    });
   } finally {
     document.body.classList.remove("pdf-exporting");
     exportNode.remove();
