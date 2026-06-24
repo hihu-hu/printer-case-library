@@ -819,7 +819,9 @@ h1 {
 
 .file-field {
   display: grid;
-  gap: 8px;
+  grid-template-columns: 250px minmax(0, 1fr);
+  gap: 10px 14px;
+  align-items: start;
   margin-bottom: 12px;
 }
 
@@ -828,6 +830,10 @@ h1 {
   color: var(--muted);
   font-size: 13px;
   font-weight: 700;
+}
+
+.file-field > span {
+  grid-column: 1 / -1;
 }
 
 .case-form input,
@@ -872,10 +878,11 @@ h1 {
   display: grid;
   gap: 6px;
   place-items: center;
-  min-height: 76px;
+  width: 250px;
+  min-height: 78px;
   border: 2px dashed #b8c7d9;
   border-radius: 8px;
-  padding: 10px 14px;
+  padding: 10px;
   background: #f8fafc;
   color: var(--ink);
   text-align: center;
@@ -892,6 +899,7 @@ h1 {
 }
 
 .drop-zone strong {
+  font-size: 14px;
   color: var(--green-deep);
 }
 
@@ -906,6 +914,9 @@ h1 {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
+  min-height: 78px;
+  align-content: flex-start;
+  align-items: flex-start;
   color: var(--muted);
   font-size: 13px;
 }
@@ -1024,7 +1035,7 @@ h1 {
 }
 
 .compact-zone {
-  min-height: 96px;
+  min-height: 78px;
 }
 
 .form-actions {
@@ -1420,5 +1431,13 @@ h1 {
   .share-options,
   .form-grid {
     grid-template-columns: 1fr;
+  }
+
+  .file-field {
+    grid-template-columns: 1fr;
+  }
+
+  .drop-zone {
+    width: 100%;
   }
 }
