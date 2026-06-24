@@ -9,6 +9,12 @@ const SUPABASE_CONFIG = window.SUPABASE_CONFIG || {};
 const ADMIN_LOGIN = window.ADMIN_LOGIN || {};
 const SUPABASE_READY = Boolean(SUPABASE_CONFIG.url && SUPABASE_CONFIG.anonKey && window.supabase);
 const supabaseClient = SUPABASE_READY ? window.supabase.createClient(SUPABASE_CONFIG.url, SUPABASE_CONFIG.anonKey) : null;
+const MEDIA_BUCKET = "case-media";
+const MAX_MEDIA_FILE_SIZE = 50 * 1024 * 1024;
+const IMAGE_COMPRESSION_MIN_SIZE = 350 * 1024;
+const IMAGE_COMPRESSION_MAX_WIDTH = 1600;
+const IMAGE_COMPRESSION_MAX_HEIGHT = 1600;
+const IMAGE_COMPRESSION_QUALITY = 0.72;
 
 function normalizeModel(model) {
   return MODEL_ORDER.includes(model) ? model : "其他";
@@ -80,6 +86,7 @@ let solutionItemIndex = 0;
 let editingCaseId = null;
 let activeConfirmResolver = null;
 let isSavingCase = false;
+let editingSnapshot = "";
 
 function readLinkParams() {
   const params = new URLSearchParams(window.location.search);
@@ -148,6 +155,16 @@ function caseToRow(item) {
 
 function safeFileName(name = "file") {
   return name.replace(/[^a-zA-Z0-9._-]/g, "-").slice(-80) || "file";
+}
+
+function cleanMediaForSave(media) {
+  if (!media) return media;
+  const { previewUrl, uploadProgress, uploadStatus, uploadError, ...savedMedia } = media;
+  return savedMedia;
+}
+
+function stableJson(value) {
+  return JSON.stringify(value);
 }
 
 function isCloudMode() {
@@ -305,48 +322,240 @@ function createUploadMediaItem(file) {
     title: file.name,
     desc: isVideo ? "上传的视频资料" : "上传的图片资料",
     fileName: file.name,
+    size: file.size,
     previewUrl: URL.createObjectURL(file),
     uploadProgress: 0,
     uploadStatus: "uploading",
   };
 }
 
-function processMediaFile(file, mediaItem, zoneType, solutionId) {
-  const reader = new FileReader();
+function formatFileSize(bytes = 0) {
+  if (bytes >= 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)}MB`;
+  if (bytes >= 1024) return `${(bytes / 1024).toFixed(1)}KB`;
+  return `${bytes}B`;
+}
 
-  reader.onprogress = (event) => {
-    if (!event.lengthComputable) return;
-    mediaItem.uploadProgress = Math.max(1, Math.round((event.loaded / event.total) * 100));
-    updateFileList(zoneType, solutionId);
+function canCompressImage(file) {
+  return (
+    file?.type?.startsWith("image/") &&
+    !["image/gif", "image/svg+xml"].includes(file.type) &&
+    file.size > IMAGE_COMPRESSION_MIN_SIZE
+  );
+}
+
+function jpgFileName(name = "image") {
+  const cleanName = name.replace(/\.[^.]+$/, "");
+  return `${cleanName || "image"}-compressed.jpg`;
+}
+
+function loadImageForCompression(file) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const image = new Image();
+    image.onload = () => {
+      URL.revokeObjectURL(url);
+      resolve(image);
+    };
+    image.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("图片读取失败"));
+    };
+    image.src = url;
+  });
+}
+
+function canvasToBlob(canvas, type, quality) {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(
+      (blob) => {
+        if (blob) {
+          resolve(blob);
+          return;
+        }
+        reject(new Error("图片压缩失败"));
+      },
+      type,
+      quality
+    );
+  });
+}
+
+async function compressImageFile(file) {
+  if (!canCompressImage(file)) {
+    return { file, compressed: false };
+  }
+
+  const image = await loadImageForCompression(file);
+  const scale = Math.min(1, IMAGE_COMPRESSION_MAX_WIDTH / image.width, IMAGE_COMPRESSION_MAX_HEIGHT / image.height);
+  const width = Math.max(1, Math.round(image.width * scale));
+  const height = Math.max(1, Math.round(image.height * scale));
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const context = canvas.getContext("2d");
+  context.drawImage(image, 0, 0, width, height);
+
+  const blob = await canvasToBlob(canvas, "image/jpeg", IMAGE_COMPRESSION_QUALITY);
+  if (blob.size >= file.size * 0.92) {
+    return { file, compressed: false };
+  }
+
+  const compressedFile = new File([blob], jpgFileName(file.name), {
+    type: "image/jpeg",
+    lastModified: Date.now(),
+  });
+
+  return {
+    file: compressedFile,
+    compressed: true,
+    originalSize: file.size,
+    compressedSize: compressedFile.size,
   };
+}
 
-  reader.onload = () => {
-    mediaItem.src = reader.result;
+async function prepareMediaFile(file, mediaItem, zoneType, solutionId) {
+  if (!canCompressImage(file)) return file;
+
+  mediaItem.uploadStatus = "compressing";
+  mediaItem.uploadProgress = 0;
+  mediaItem.uploadError = "";
+  updateFileList(zoneType, solutionId);
+
+  const result = await compressImageFile(file);
+  if (!result.compressed) return file;
+
+  if (mediaItem.previewUrl) URL.revokeObjectURL(mediaItem.previewUrl);
+  mediaItem.previewUrl = URL.createObjectURL(result.file);
+  mediaItem.title = result.file.name;
+  mediaItem.fileName = result.file.name;
+  mediaItem.size = result.file.size;
+  mediaItem.originalSize = result.originalSize;
+  mediaItem.compressedSize = result.compressedSize;
+  mediaItem.compressionText = `已压缩：${formatFileSize(result.originalSize)} → ${formatFileSize(result.compressedSize)}`;
+  updateFileList(zoneType, solutionId);
+  return result.file;
+}
+
+async function uploadMediaFile(file, mediaItem, zoneType, solutionId) {
+  let uploadFile = file;
+
+  try {
+    uploadFile = await prepareMediaFile(file, mediaItem, zoneType, solutionId);
+  } catch (error) {
+    console.warn("图片压缩失败", error);
+    mediaItem.uploadStatus = "error";
+    mediaItem.uploadError = "图片压缩失败，请换一张图片试试。";
+    mediaItem.uploadProgress = 0;
+    updateFileList(zoneType, solutionId);
+    return;
+  }
+
+  if (isCloudMode() && uploadFile.size > MAX_MEDIA_FILE_SIZE) {
+    mediaItem.uploadStatus = "error";
+    mediaItem.uploadError = `文件太大：${formatFileSize(uploadFile.size)}，最多 50MB`;
+    mediaItem.uploadProgress = 0;
+    updateFileList(zoneType, solutionId);
+    return;
+  }
+
+  if (!isCloudMode()) {
+    const reader = new FileReader();
+
+    reader.onprogress = (event) => {
+      if (!event.lengthComputable) return;
+      mediaItem.uploadProgress = Math.max(1, Math.round((event.loaded / event.total) * 100));
+      updateFileList(zoneType, solutionId);
+    };
+
+    reader.onload = () => {
+      mediaItem.src = reader.result;
+      mediaItem.uploadProgress = 100;
+      mediaItem.uploadStatus = "ready";
+      updateFileList(zoneType, solutionId);
+    };
+
+    reader.onerror = () => {
+      mediaItem.uploadStatus = "error";
+      mediaItem.uploadProgress = 0;
+      updateFileList(zoneType, solutionId);
+    };
+
+    reader.readAsDataURL(uploadFile);
+    return;
+  }
+
+  try {
+    mediaItem.uploadProgress = 5;
+    updateFileList(zoneType, solutionId);
+
+    const extension = uploadFile.name.includes(".") ? uploadFile.name.split(".").pop() : "bin";
+    const path = `${Date.now()}-${Math.random().toString(36).slice(2)}-${safeFileName(uploadFile.name || `media.${extension}`)}`;
+    await uploadFileToSupabaseStorage(uploadFile, path, (progress) => {
+      mediaItem.uploadProgress = progress;
+      updateFileList(zoneType, solutionId);
+    });
+
+    const { data } = supabaseClient.storage.from(MEDIA_BUCKET).getPublicUrl(path);
+    mediaItem.src = data.publicUrl;
+    mediaItem.path = path;
     mediaItem.uploadProgress = 100;
     mediaItem.uploadStatus = "ready";
     updateFileList(zoneType, solutionId);
-  };
-
-  reader.onerror = () => {
+  } catch (error) {
+    console.warn("文件上传失败", error);
     mediaItem.uploadStatus = "error";
+    mediaItem.uploadError = String(error?.message || error || "上传失败");
     mediaItem.uploadProgress = 0;
     updateFileList(zoneType, solutionId);
-  };
-
-  reader.readAsDataURL(file);
+  }
 }
 
 async function uploadFileAsMedia(file) {
-  return readFileAsDataUrl(file);
+  if (!isCloudMode()) return readFileAsDataUrl(file);
+
+  const mediaItem = createUploadMediaItem(file);
+  await uploadMediaFile(file, mediaItem, "", "");
+  if (mediaItem.uploadStatus !== "ready") throw new Error("文件上传失败");
+  return cleanMediaForSave(mediaItem);
+}
+
+function uploadFileToSupabaseStorage(file, path, onProgress) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    const encodedPath = encodeURIComponent(path);
+    const uploadUrl = `${SUPABASE_CONFIG.url}/storage/v1/object/${MEDIA_BUCKET}/${encodedPath}`;
+
+    xhr.upload.onprogress = (event) => {
+      if (!event.lengthComputable) return;
+      onProgress(Math.max(1, Math.round((event.loaded / event.total) * 100)));
+    };
+
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve();
+        return;
+      }
+
+      reject(new Error(xhr.responseText || `上传失败：${xhr.status}`));
+    };
+
+    xhr.onerror = () => reject(new Error("网络连接失败"));
+    xhr.open("POST", uploadUrl);
+    xhr.setRequestHeader("apikey", SUPABASE_CONFIG.anonKey);
+    xhr.setRequestHeader("Authorization", `Bearer ${SUPABASE_CONFIG.anonKey}`);
+    xhr.setRequestHeader("x-upsert", "false");
+    xhr.setRequestHeader("Content-Type", file.type || "application/octet-stream");
+    xhr.send(file);
+  });
 }
 
 async function readFilesAsMedia(fileList) {
   const files = Array.from(fileList || []);
   return Promise.all(
     files.map((file) => {
-      if (file && file.src) return file;
       if (file?.uploadStatus === "uploading") throw new Error("文件还在上传");
       if (file?.uploadStatus === "error") throw new Error("文件上传失败");
+      if (file && file.src) return cleanMediaForSave(file);
       return uploadFileAsMedia(file);
     })
   );
@@ -394,12 +603,16 @@ function renderFilePreview(file) {
 function renderUploadProgress(file) {
   if (!file?.uploadStatus) return "";
 
+  if (file.uploadStatus === "compressing") {
+    return `<div class="upload-progress"><span>正在压缩图片</span><i style="width: 35%"></i></div>`;
+  }
+
   if (file.uploadStatus === "ready") {
-    return `<div class="upload-progress done">上传完成</div>`;
+    return `<div class="upload-progress done">上传完成${file.compressionText ? `<small>${file.compressionText}</small>` : ""}</div>`;
   }
 
   if (file.uploadStatus === "error") {
-    return `<div class="upload-progress error">上传失败</div>`;
+    return `<div class="upload-progress error">${file.uploadError || "上传失败"}</div>`;
   }
 
   const progress = Math.max(0, Math.min(100, file.uploadProgress || 0));
@@ -460,14 +673,14 @@ function addFilesToZone(zone, files) {
   if (zoneType === "solution") {
     setPendingFiles(zoneType, solutionId, [...getPendingFiles(zoneType, solutionId), ...pendingMedia]);
     updateFileList(zoneType, solutionId);
-    mediaFiles.forEach((file, index) => processMediaFile(file, pendingMedia[index], zoneType, solutionId));
+    mediaFiles.forEach((file, index) => uploadMediaFile(file, pendingMedia[index], zoneType, solutionId));
     showToast(`已添加 ${mediaFiles.length} 个文件，正在上传。`);
     return;
   }
 
   pendingFiles.customer.push(...pendingMedia);
   updateFileList(zoneType, solutionId);
-  mediaFiles.forEach((file, index) => processMediaFile(file, pendingMedia[index], zoneType, solutionId));
+  mediaFiles.forEach((file, index) => uploadMediaFile(file, pendingMedia[index], zoneType, solutionId));
   showToast(`已添加 ${mediaFiles.length} 个文件，正在上传。`);
 }
 
@@ -482,7 +695,7 @@ function allPendingMedia() {
 }
 
 function hasUploadingMedia() {
-  return allPendingMedia().some((file) => file.uploadStatus === "uploading");
+  return allPendingMedia().some((file) => file.uploadStatus === "uploading" || file.uploadStatus === "compressing");
 }
 
 function hasFailedMedia() {
@@ -599,6 +812,26 @@ function getSolutionMediaForForm(item, index) {
   return [];
 }
 
+function getCurrentFormSnapshot() {
+  const formData = new FormData(caseForm);
+  const solutions = Array.from(solutionItems.querySelectorAll(".solution-form-item")).map((item, index) => {
+    const solutionId = item.dataset.solutionId;
+    const text = item.querySelector(".solution-text").value.trim();
+    const [title, desc] = parseSolutionText(text, index);
+    const media = (pendingFiles.solutions[solutionId] || []).map(cleanMediaForSave);
+    return { title, desc, media };
+  });
+
+  return stableJson({
+    title: formData.get("title").trim(),
+    model: formData.get("model").trim(),
+    level: formData.get("level"),
+    problem: formData.get("problem").trim(),
+    media: pendingFiles.customer.map(cleanMediaForSave),
+    solutions,
+  });
+}
+
 async function collectSolutionItems() {
   const formItems = Array.from(solutionItems.querySelectorAll(".solution-form-item"));
   const collected = await Promise.all(
@@ -643,6 +876,7 @@ function openCaseModal(item = null) {
   if (item) {
     fillCaseFormForEdit(item);
   }
+  editingSnapshot = editingCaseId ? getCurrentFormSnapshot() : "";
   caseModal.classList.add("show");
   caseModal.setAttribute("aria-hidden", "false");
   caseForm.elements.title.focus();
@@ -651,6 +885,10 @@ function openCaseModal(item = null) {
 function closeCaseModal() {
   caseModal.classList.remove("show");
   caseModal.setAttribute("aria-hidden", "true");
+  if (!isSavingCase) {
+    editingCaseId = null;
+    editingSnapshot = "";
+  }
 }
 
 function caseFormHasContent() {
@@ -710,6 +948,15 @@ async function saveCaseFromForm() {
   if (!canEditCases()) return;
   if (isSavingCase) return;
 
+  if (editingCaseId && editingSnapshot && getCurrentFormSnapshot() === editingSnapshot) {
+    closeCaseModal();
+    resetPendingFiles();
+    editingCaseId = null;
+    editingSnapshot = "";
+    showToast("内容没有变化，不需要重新保存。");
+    return;
+  }
+
   if (hasUploadingMedia()) {
     showToast("视频或图片还在上传，请等上传完成后再保存。");
     return;
@@ -765,13 +1012,15 @@ async function saveCaseFromForm() {
     state.keyword = "";
     state.selectedId = savedCase.id;
     searchInput.value = "";
+    const wasEditing = Boolean(editingCaseId);
     renderFilters();
     renderCaseList();
     updateAddressForSelectedCase();
     closeCaseModal();
     resetPendingFiles();
-    showToast(editingCaseId ? "案例已修改。" : "新案例已保存。");
+    showToast(wasEditing ? "案例已修改。" : "新案例已保存。");
     editingCaseId = null;
+    editingSnapshot = "";
   } catch (error) {
     console.warn("案例保存失败", error);
     showToast(isCloudMode() ? "保存失败，图片或视频可能太大，或云端连接不稳定。" : "保存失败，图片或视频可能太大。请先用小文件测试。");

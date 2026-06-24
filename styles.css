@@ -963,7 +963,7 @@ h1 {
 
 .upload-progress {
   position: relative;
-  height: 20px;
+  min-height: 20px;
   overflow: hidden;
   border-radius: 999px;
   background: #e2e8f0;
@@ -990,9 +990,21 @@ h1 {
   color: #166534;
 }
 
+.upload-progress.done small {
+  display: block;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
 .upload-progress.error {
+  height: auto;
+  border-radius: 8px;
+  padding: 3px 6px;
   background: #fee2e2;
   color: var(--red);
+  line-height: 1.35;
+  white-space: normal;
 }
 
 .file-list button {

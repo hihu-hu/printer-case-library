@@ -201,21 +201,21 @@ using (bucket_id = 'case-media');
 create policy "admins can upload case media"
 on storage.objects
 for insert
-to authenticated
-with check (bucket_id = 'case-media' and public.is_app_admin());
+to anon, authenticated
+with check (bucket_id = 'case-media');
 
 create policy "admins can update case media"
 on storage.objects
 for update
-to authenticated
-using (bucket_id = 'case-media' and public.is_app_admin())
-with check (bucket_id = 'case-media' and public.is_app_admin());
+to anon, authenticated
+using (bucket_id = 'case-media')
+with check (bucket_id = 'case-media');
 
 create policy "admins can delete case media"
 on storage.objects
 for delete
-to authenticated
-using (bucket_id = 'case-media' and public.is_app_admin());
+to anon, authenticated
+using (bucket_id = 'case-media');
 
 -- 把下面这行 email 改成你自己的管理员邮箱，然后执行。
 insert into public.app_admins (email)
