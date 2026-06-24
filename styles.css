@@ -1291,6 +1291,11 @@ h1 {
   pointer-events: none;
 }
 
+.pdf-export-area.single-pdf-page {
+  height: 1123px;
+  overflow: hidden;
+}
+
 .pdf-exporting {
   overflow: visible;
   background: #ffffff;

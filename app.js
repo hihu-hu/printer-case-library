@@ -1439,66 +1439,74 @@ function renderPrintMedia(mediaList) {
   `;
 }
 
-function buildExportContent(exportCases = cases) {
-  const exportDate = new Date().toLocaleString("zh-CN", {
+function getExportDateText() {
+  return new Date().toLocaleString("zh-CN", {
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
     hour: "2-digit",
     minute: "2-digit",
   });
+}
 
-  const caseCards = exportCases
-    .map(
-      (item) => `
-        <article class="print-case">
-          <header class="print-case-head">
-            <div>
-              <p>${item.model} / ${item.category} / ${item.level}</p>
-              <h2>${item.title}</h2>
-            </div>
-          </header>
+function buildExportCaseCard(item) {
+  return `
+    <article class="print-case">
+      <header class="print-case-head">
+        <div>
+          <p>${item.model} / ${item.category} / ${item.level}</p>
+          <h2>${item.title}</h2>
+        </div>
+      </header>
 
-          <section>
-            <h3>问题现象</h3>
-            <p>${item.customer}</p>
-            <p>${item.summary}</p>
-          </section>
+      <section>
+        <h3>问题现象</h3>
+        <p>${item.customer}</p>
+        <p>${item.summary}</p>
+      </section>
 
-          <section>
-            <h3>问题现象资料</h3>
-            ${renderPrintMedia(item.media)}
-          </section>
+      <section>
+        <h3>问题现象资料</h3>
+        ${renderPrintMedia(item.media)}
+      </section>
 
-          <section>
-            <h3>处理方案</h3>
-            <ol>
-              ${(item.steps || [])
-                .map((step, index) => {
-                  const [title, desc] = getStepParts(step, index);
-                  return `
-                    <li>
-                      <strong>${title}</strong>
-                      ${desc ? `<p>${desc}</p>` : ""}
-                      ${renderPrintMedia(item.solutionMediaByStep?.[index] || [])}
-                    </li>
-                  `;
-                })
-                .join("")}
-            </ol>
-          </section>
-        </article>
-      `
-    )
-    .join("");
+      <section>
+        <h3>处理方案</h3>
+        <ol>
+          ${(item.steps || [])
+            .map((step, index) => {
+              const [title, desc] = getStepParts(step, index);
+              return `
+                <li>
+                  <strong>${title}</strong>
+                  ${desc ? `<p>${desc}</p>` : ""}
+                  ${renderPrintMedia(item.solutionMediaByStep?.[index] || [])}
+                </li>
+              `;
+            })
+            .join("")}
+        </ol>
+      </section>
+    </article>
+  `;
+}
+
+function buildExportHeader(metaText) {
+  return `
+    <header class="print-title">
+      <p>打印机售后案例库</p>
+      <span>${metaText}</span>
+    </header>
+  `;
+}
+
+function buildExportContent(exportCases = cases) {
+  const exportDate = getExportDateText();
+  const caseCards = exportCases.map((item) => buildExportCaseCard(item)).join("");
 
   return `
     <main class="print-wrap">
-      <header class="print-title">
-        <p>打印机售后案例库</p>
-        <h1>全部案例导出</h1>
-        <span>共 ${exportCases.length} 条案例 / 导出时间：${exportDate}</span>
-      </header>
+      ${buildExportHeader(`共 ${exportCases.length} 条案例 / 导出时间：${exportDate}`)}
       ${caseCards}
     </main>
   `;
@@ -1711,6 +1719,22 @@ function getExportCanvasScale(exportNode) {
   return Math.max(minScale, Math.min(idealScale, Math.sqrt(maxCanvasPixels / contentPixels)));
 }
 
+function fitExportPageToOneSheet(exportNode) {
+  const wrap = exportNode.querySelector(".print-wrap");
+  if (!wrap) return;
+
+  wrap.style.transform = "";
+  wrap.style.marginLeft = "auto";
+  wrap.style.marginRight = "auto";
+
+  const availableHeight = exportNode.clientHeight - 12;
+  const contentHeight = wrap.scrollHeight;
+  const scale = Math.min(1, availableHeight / Math.max(contentHeight, 1));
+
+  wrap.style.transformOrigin = "top center";
+  wrap.style.transform = `scale(${scale})`;
+}
+
 async function ensureCanvasTool() {
   if (typeof window.html2canvas === "function") return window.html2canvas;
   if (canvasToolLoader) return canvasToolLoader;
@@ -1740,53 +1764,49 @@ async function buildCanvasPdf(exportCases) {
   const JsPDF = getPdfConstructor() || (await ensurePdfTool());
   const html2canvas = await ensureCanvasTool();
   const doc = new JsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
-
-  const exportNode = document.createElement("div");
-  exportNode.className = "pdf-export-area print-page";
-  exportNode.innerHTML = buildExportContent(exportCases);
-  document.body.appendChild(exportNode);
+  const exportDate = getExportDateText();
   document.body.classList.add("pdf-exporting");
 
   try {
-    await waitForExportImages(exportNode);
-    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-    const canvasScale = getExportCanvasScale(exportNode);
-
-    const canvas = await html2canvas(exportNode, {
-      backgroundColor: "#ffffff",
-      scale: canvasScale,
-      useCORS: true,
-      allowTaint: true,
-      logging: false,
-      windowWidth: exportNode.scrollWidth,
-      windowHeight: exportNode.scrollHeight,
-    });
-
-    if (!canvas.width || !canvas.height || exportNode.innerText.trim().length < 10) {
-      throw new Error("PDF 内容截图为空");
-    }
-
     const pageWidth = 210;
     const pageHeight = 297;
-    const canvasPageHeight = Math.floor((canvas.width * pageHeight) / pageWidth);
-    const pageSlices = getCanvasPageSlices(exportNode, canvas, canvasPageHeight);
+    for (const [pageIndex, item] of exportCases.entries()) {
+      const exportNode = document.createElement("div");
+      exportNode.className = "pdf-export-area print-page single-pdf-page";
+      exportNode.innerHTML = `
+        <main class="print-wrap">
+          ${buildExportHeader(`第 ${pageIndex + 1} / 共 ${exportCases.length} 条案例 / 导出时间：${exportDate}`)}
+          ${buildExportCaseCard(item)}
+        </main>
+      `;
+      document.body.appendChild(exportNode);
 
-    pageSlices.forEach((slice, pageIndex) => {
-      const pageCanvas = document.createElement("canvas");
-      pageCanvas.width = canvas.width;
-      pageCanvas.height = slice.height;
-      const pageContext = pageCanvas.getContext("2d");
-      pageContext.fillStyle = "#ffffff";
-      pageContext.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
-      pageContext.drawImage(canvas, 0, slice.sourceY, canvas.width, slice.height, 0, 0, canvas.width, slice.height);
+      await waitForExportImages(exportNode);
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      fitExportPageToOneSheet(exportNode);
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+
+      const canvas = await html2canvas(exportNode, {
+        backgroundColor: "#ffffff",
+        scale: getExportCanvasScale(exportNode),
+        useCORS: true,
+        allowTaint: true,
+        logging: false,
+        windowWidth: exportNode.scrollWidth,
+        windowHeight: exportNode.clientHeight,
+      });
+
+      if (!canvas.width || !canvas.height || exportNode.innerText.trim().length < 10) {
+        exportNode.remove();
+        throw new Error("PDF 内容截图为空");
+      }
 
       if (pageIndex > 0) doc.addPage();
-      const imageHeight = (slice.height * pageWidth) / canvas.width;
-      doc.addImage(pageCanvas.toDataURL("image/jpeg", 0.98), "JPEG", 0, 0, pageWidth, imageHeight);
-    });
+      doc.addImage(canvas.toDataURL("image/png"), "PNG", 0, 0, pageWidth, pageHeight);
+      exportNode.remove();
+    }
   } finally {
     document.body.classList.remove("pdf-exporting");
-    exportNode.remove();
   }
 
   return doc;
