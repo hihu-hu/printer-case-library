@@ -1277,25 +1277,22 @@ h1 {
 }
 
 .pdf-export-area {
-  display: none;
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 9999;
+  display: block;
   width: 794px;
   min-height: 1123px;
   margin: 0;
   background: #ffffff;
   color: #0f172a;
+  pointer-events: none;
 }
 
 .pdf-exporting {
   overflow: visible;
   background: #ffffff;
-}
-
-.pdf-exporting > :not(.pdf-export-area) {
-  display: none !important;
-}
-
-.pdf-exporting .pdf-export-area {
-  display: block;
 }
 
 .print-wrap {

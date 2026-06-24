@@ -88,7 +88,7 @@ let activeConfirmResolver = null;
 let isSavingCase = false;
 let editingSnapshot = "";
 let pdfToolLoader = null;
-let pdfFontReady = false;
+let canvasToolLoader = null;
 
 function readLinkParams() {
   const params = new URLSearchParams(window.location.search);
@@ -1598,9 +1598,12 @@ async function ensurePdfTool() {
     .then((code) => {
       const installTool = new Function(
         "window",
+        "module",
+        "exports",
+        "define",
         `${code}\nreturn window.jspdf && window.jspdf.jsPDF;`
       );
-      const jsPDF = installTool(window);
+      const jsPDF = installTool(window, undefined, undefined, undefined);
 
       if (typeof jsPDF !== "function") {
         throw new Error("PDF 工具安装失败");
@@ -1616,182 +1619,86 @@ function getPdfConstructor() {
   return window.jspdf?.jsPDF || window.jsPDF || null;
 }
 
-function arrayBufferToBase64(buffer) {
-  const bytes = new Uint8Array(buffer);
-  let binary = "";
-  const chunkSize = 0x8000;
-  for (let index = 0; index < bytes.length; index += chunkSize) {
-    binary += String.fromCharCode(...bytes.subarray(index, index + chunkSize));
-  }
-  return window.btoa(binary);
-}
+async function ensureCanvasTool() {
+  if (typeof window.html2canvas === "function") return window.html2canvas;
+  if (canvasToolLoader) return canvasToolLoader;
 
-async function setupPdfFont(doc) {
-  if (!pdfFontReady) {
-    const response = await fetch("pdf-font.ttf?v=20260624-direct-pdf");
-    if (!response.ok) throw new Error("PDF 中文字体读取失败");
-    const fontBase64 = arrayBufferToBase64(await response.arrayBuffer());
-    doc.addFileToVFS("pdf-font.ttf", fontBase64);
-    doc.addFont("pdf-font.ttf", "PdfChinese", "normal");
-    doc.addFont("pdf-font.ttf", "PdfChinese", "bold");
-    pdfFontReady = true;
-  }
-
-  doc.setFont("PdfChinese", "normal");
-}
-
-async function loadPdfImage(src) {
-  if (!src) return null;
-
-  return new Promise((resolve) => {
-    const image = new Image();
-    image.crossOrigin = "anonymous";
-    image.onload = () => {
-      try {
-        const canvas = document.createElement("canvas");
-        canvas.width = image.naturalWidth || image.width;
-        canvas.height = image.naturalHeight || image.height;
-        const context = canvas.getContext("2d");
-        context.drawImage(image, 0, 0);
-        resolve({
-          dataUrl: canvas.toDataURL("image/jpeg", 0.82),
-          width: canvas.width,
-          height: canvas.height,
-        });
-      } catch (error) {
-        resolve(null);
-      }
-    };
-    image.onerror = () => resolve(null);
-    image.src = src;
-  });
-}
-
-function addPdfPageIfNeeded(doc, cursor, neededHeight) {
-  if (cursor.y + neededHeight <= cursor.bottom) return;
-  doc.addPage();
-  cursor.y = cursor.top;
-}
-
-function writePdfText(doc, cursor, text, options = {}) {
-  const cleanText = String(text || "").trim();
-  if (!cleanText) return;
-
-  const fontSize = options.fontSize || 11;
-  const lineHeight = options.lineHeight || fontSize * 0.55;
-  const gap = options.gap ?? 3;
-  const maxWidth = options.maxWidth || cursor.width;
-
-  doc.setFontSize(fontSize);
-  doc.setTextColor(options.color || "#1f2937");
-  doc.setFont("PdfChinese", options.bold ? "bold" : "normal");
-
-  const lines = doc.splitTextToSize(cleanText, maxWidth);
-  addPdfPageIfNeeded(doc, cursor, lines.length * lineHeight + gap);
-  doc.text(lines, cursor.x, cursor.y);
-  cursor.y += lines.length * lineHeight + gap;
-}
-
-function writePdfRule(doc, cursor) {
-  addPdfPageIfNeeded(doc, cursor, 8);
-  doc.setDrawColor("#1e5f9f");
-  doc.setLineWidth(0.8);
-  doc.line(cursor.x, cursor.y, cursor.x + cursor.width, cursor.y);
-  cursor.y += 8;
-}
-
-async function writePdfMedia(doc, cursor, mediaList) {
-  const printableList = (mediaList || []).filter((media) => isImageMedia(media) || isVideoMedia(media));
-  if (!printableList.length) {
-    writePdfText(doc, cursor, "暂无图片或视频资料。", { color: "#64748b" });
-    return;
-  }
-
-  for (const media of printableList) {
-    if (isVideoMedia(media)) {
-      writePdfText(doc, cursor, `视频：${media.title || media.fileName || "视频资料"}`, { color: "#64748b" });
-      continue;
-    }
-
-    const loadedImage = await loadPdfImage(media.src);
-    if (!loadedImage) {
-      writePdfText(doc, cursor, `图片：${media.title || media.fileName || "图片资料"}`, { color: "#64748b" });
-      continue;
-    }
-
-    const maxImageWidth = Math.min(cursor.width, 92);
-    const maxImageHeight = 62;
-    const ratio = Math.min(maxImageWidth / loadedImage.width, maxImageHeight / loadedImage.height, 1);
-    const imageWidth = loadedImage.width * ratio;
-    const imageHeight = loadedImage.height * ratio;
-
-    addPdfPageIfNeeded(doc, cursor, imageHeight + 11);
-    doc.addImage(loadedImage.dataUrl, "JPEG", cursor.x, cursor.y, imageWidth, imageHeight);
-    cursor.y += imageHeight + 3;
-    writePdfText(doc, cursor, media.title || media.fileName || "图片资料", {
-      fontSize: 9,
-      color: "#64748b",
-      gap: 4,
+  canvasToolLoader = fetch("html2canvas.min.js?v=20260624-canvas-pdf")
+    .then((response) => {
+      if (!response.ok) throw new Error("PDF 截图工具读取失败");
+      return response.text();
+    })
+    .then((code) => {
+      const installTool = new Function(
+        "window",
+        "module",
+        "exports",
+        "define",
+        `${code}\nreturn window.html2canvas;`
+      );
+      const html2canvas = installTool(window, undefined, undefined, undefined);
+      if (typeof html2canvas !== "function") throw new Error("PDF 截图工具安装失败");
+      return html2canvas;
     });
-  }
+
+  return canvasToolLoader;
 }
 
-async function buildDirectPdf(exportCases) {
+async function buildCanvasPdf(exportCases) {
   const JsPDF = getPdfConstructor() || (await ensurePdfTool());
+  const html2canvas = await ensureCanvasTool();
   const doc = new JsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
-  await setupPdfFont(doc);
-  const cursor = {
-    x: 16,
-    y: 18,
-    top: 18,
-    bottom: 282,
-    width: 178,
-  };
 
-  const exportDate = new Date().toLocaleString("zh-CN", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  const exportNode = document.createElement("div");
+  exportNode.className = "pdf-export-area print-page";
+  exportNode.innerHTML = buildExportContent(exportCases);
+  document.body.appendChild(exportNode);
+  document.body.classList.add("pdf-exporting");
 
-  writePdfText(doc, cursor, "打印机售后案例库", { fontSize: 13, color: "#1e5f9f", bold: true, gap: 4 });
-  writePdfText(doc, cursor, "全部案例导出", { fontSize: 22, color: "#0f172a", bold: true, gap: 5 });
-  writePdfText(doc, cursor, `共 ${exportCases.length} 条案例 / 导出时间：${exportDate}`, {
-    fontSize: 11,
-    color: "#64748b",
-    gap: 5,
-  });
-  writePdfRule(doc, cursor);
+  try {
+    await waitForExportImages(exportNode);
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
 
-  for (const item of exportCases) {
-    addPdfPageIfNeeded(doc, cursor, 36);
-    writePdfText(doc, cursor, `${item.model} / ${item.category} / ${item.level}`, {
-      fontSize: 11,
-      color: "#1e5f9f",
-      bold: true,
-      gap: 3,
+    const canvas = await html2canvas(exportNode, {
+      backgroundColor: "#ffffff",
+      scale: 1.4,
+      useCORS: true,
+      allowTaint: true,
+      logging: false,
+      windowWidth: exportNode.scrollWidth,
+      windowHeight: exportNode.scrollHeight,
     });
-    writePdfText(doc, cursor, item.title, { fontSize: 16, color: "#0f172a", bold: true, gap: 5 });
 
-    writePdfText(doc, cursor, "问题现象", { fontSize: 12, bold: true, color: "#0f172a", gap: 3 });
-    writePdfText(doc, cursor, item.problem || item.summary || cleanCustomerText(item.customer), { fontSize: 11, gap: 5 });
-
-    writePdfText(doc, cursor, "问题现象资料", { fontSize: 12, bold: true, color: "#0f172a", gap: 3 });
-    await writePdfMedia(doc, cursor, item.media);
-
-    writePdfText(doc, cursor, "处理方案", { fontSize: 12, bold: true, color: "#0f172a", gap: 3 });
-    const steps = item.steps || [];
-    for (let index = 0; index < steps.length; index += 1) {
-      const [title, desc] = getStepParts(steps[index], index);
-      writePdfText(doc, cursor, `${index + 1}. ${title}`, { fontSize: 11, bold: true, gap: 2 });
-      writePdfText(doc, cursor, desc, { fontSize: 10, color: "#334155", gap: 3 });
-      await writePdfMedia(doc, cursor, item.solutionMediaByStep?.[index] || []);
+    if (!canvas.width || !canvas.height || exportNode.innerText.trim().length < 10) {
+      throw new Error("PDF 内容截图为空");
     }
 
-    cursor.y += 4;
-    writePdfRule(doc, cursor);
+    const pageWidth = 210;
+    const pageHeight = 297;
+    const canvasPageHeight = Math.floor((canvas.width * pageHeight) / pageWidth);
+    let sourceY = 0;
+    let pageIndex = 0;
+
+    while (sourceY < canvas.height) {
+      const sliceHeight = Math.min(canvasPageHeight, canvas.height - sourceY);
+      const pageCanvas = document.createElement("canvas");
+      pageCanvas.width = canvas.width;
+      pageCanvas.height = sliceHeight;
+      const pageContext = pageCanvas.getContext("2d");
+      pageContext.fillStyle = "#ffffff";
+      pageContext.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
+      pageContext.drawImage(canvas, 0, sourceY, canvas.width, sliceHeight, 0, 0, canvas.width, sliceHeight);
+
+      if (pageIndex > 0) doc.addPage();
+      const imageHeight = (sliceHeight * pageWidth) / canvas.width;
+      doc.addImage(pageCanvas.toDataURL("image/jpeg", 0.9), "JPEG", 0, 0, pageWidth, imageHeight);
+
+      sourceY += sliceHeight;
+      pageIndex += 1;
+    }
+  } finally {
+    document.body.classList.remove("pdf-exporting");
+    exportNode.remove();
   }
 
   return doc;
@@ -1805,7 +1712,7 @@ async function exportPdf(exportCases) {
 
   try {
     showToast("正在生成 PDF，请稍等。");
-    const doc = await buildDirectPdf(exportCases);
+    const doc = await buildCanvasPdf(exportCases);
     doc.save(getPdfFileName());
     closeExportModal();
     showToast("PDF 已保存到下载文件夹。");
