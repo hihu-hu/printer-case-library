@@ -682,6 +682,7 @@ h1 {
 
 .readonly-view #addCaseBtn,
 .readonly-view #shareBtn,
+.readonly-view #exportBtn,
 .readonly-view #adminLoginBtn,
 .readonly-view .edit-case-button,
 .readonly-view .delete-case-button {

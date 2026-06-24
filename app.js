@@ -93,13 +93,15 @@ let canvasToolLoader = null;
 function readLinkParams() {
   const params = new URLSearchParams(window.location.search);
   const caseId = Number(params.get("case"));
+  const requestedSingleView = params.get("view") === "single";
+  const requestedReadonlyView = params.get("view") === "readonly";
   if (cases.some((item) => item.id === caseId)) {
     state.selectedId = caseId;
   } else if (!state.selectedId && cases[0]) {
     state.selectedId = cases[0].id;
   }
-  isSingleCaseView = params.get("view") === "single" && cases.some((item) => item.id === state.selectedId);
-  isReadonlyView = isSingleCaseView || params.get("view") === "readonly";
+  isSingleCaseView = requestedSingleView && cases.some((item) => item.id === state.selectedId);
+  isReadonlyView = isSingleCaseView || requestedReadonlyView;
   document.body.classList.toggle("single-case-view", isSingleCaseView);
   document.body.classList.toggle("readonly-view", isReadonlyView);
 }
@@ -1416,7 +1418,6 @@ function renderPrintMedia(mediaList) {
             return `
               <figure>
                 <img src="${media.src}" alt="${media.title || "案例图片"}" />
-                ${media.title ? `<figcaption>${media.title}</figcaption>` : ""}
               </figure>
             `;
           }
@@ -2005,6 +2006,8 @@ if (new URLSearchParams(window.location.search).get("export") === "1") {
 
 async function startApp() {
   await refreshSession();
+  readLinkParams();
+  updateAdminUi();
 
   if (isCloudMode()) {
     await loadCloudCases();
