@@ -1028,7 +1028,7 @@ async function saveCaseFromForm() {
     if (editingCaseId && caseIndex >= 0) {
       cases[caseIndex] = savedCase;
     } else {
-      cases.push(savedCase);
+      cases.unshift(savedCase);
     }
 
     try {
@@ -1037,7 +1037,7 @@ async function saveCaseFromForm() {
       if (editingCaseId && caseIndex >= 0) {
         cases[caseIndex] = oldCase;
       } else {
-        cases.pop();
+        cases.shift();
       }
       throw error;
     }
@@ -1049,6 +1049,7 @@ async function saveCaseFromForm() {
     const wasEditing = Boolean(editingCaseId);
     renderFilters();
     renderCaseList();
+    caseList.scrollTop = 0;
     updateAddressForSelectedCase();
     closeCaseModal();
     resetPendingFiles();
