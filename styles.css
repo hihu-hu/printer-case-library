@@ -244,6 +244,11 @@ h1 {
   border: 1px solid var(--line);
 }
 
+.icon-button:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
 .content-grid {
   display: grid;
   grid-template-columns: minmax(310px, 0.85fr) minmax(0, 1.55fr);

@@ -79,6 +79,7 @@ let isAdminLoggedIn = !SUPABASE_READY;
 let solutionItemIndex = 0;
 let editingCaseId = null;
 let activeConfirmResolver = null;
+let isSavingCase = false;
 
 function readLinkParams() {
   const params = new URLSearchParams(window.location.search);
@@ -631,55 +632,70 @@ function buildCaseFromForm(id, existingCase = {}) {
 
 async function saveCaseFromForm() {
   if (!canEditCases()) return;
-  const customerMedia = await readFilesAsMedia(pendingFiles.customer);
-  const solutionRecords = await collectSolutionItems();
+  if (isSavingCase) return;
 
-  if (!solutionRecords.length) {
-    showToast("请至少填写一条排查方案。");
-    return;
-  }
-
-  const caseId = editingCaseId || Date.now();
-  const caseIndex = cases.findIndex((item) => item.id === caseId);
-  const oldCase = caseIndex >= 0 ? cases[caseIndex] : {};
-  const savedCase = {
-    ...buildCaseFromForm(caseId, oldCase),
-    media: customerMedia,
-    steps: solutionRecords.map((item) => [item.title, item.desc]),
-    solutionMediaByStep: solutionRecords.map((item) => item.media),
-    solutionMedia: solutionRecords.flatMap((item) => item.media),
-  };
-
-  if (editingCaseId && caseIndex >= 0) {
-    cases[caseIndex] = savedCase;
-  } else {
-    cases.push(savedCase);
-  }
+  const originalButtonText = saveCaseBtn.textContent;
+  isSavingCase = true;
+  saveCaseBtn.disabled = true;
+  saveCaseBtn.textContent = "保存中...";
+  showToast("正在保存案例，请稍等。");
 
   try {
-    await saveCaseToStorage(savedCase);
-  } catch (error) {
-    if (editingCaseId && caseIndex >= 0) {
-      cases[caseIndex] = oldCase;
-    } else {
-      cases.pop();
-    }
-    console.warn("案例保存失败", error);
-    showToast(isCloudMode() ? "云端保存失败，请确认已管理员登录。" : "保存失败，图片或视频可能太大。请先用小文件测试。");
-    return;
-  }
+    const customerMedia = await readFilesAsMedia(pendingFiles.customer);
+    const solutionRecords = await collectSolutionItems();
 
-  state.model = "全部";
-  state.keyword = "";
-  state.selectedId = savedCase.id;
-  searchInput.value = "";
-  renderFilters();
-  renderCaseList();
-  updateAddressForSelectedCase();
-  closeCaseModal();
-  resetPendingFiles();
-  showToast(editingCaseId ? "案例已修改。" : "新案例已保存。");
-  editingCaseId = null;
+    if (!solutionRecords.length) {
+      showToast("请至少填写一条排查方案。");
+      return;
+    }
+
+    const caseId = editingCaseId || Date.now();
+    const caseIndex = cases.findIndex((item) => item.id === caseId);
+    const oldCase = caseIndex >= 0 ? cases[caseIndex] : {};
+    const savedCase = {
+      ...buildCaseFromForm(caseId, oldCase),
+      media: customerMedia,
+      steps: solutionRecords.map((item) => [item.title, item.desc]),
+      solutionMediaByStep: solutionRecords.map((item) => item.media),
+      solutionMedia: solutionRecords.flatMap((item) => item.media),
+    };
+
+    if (editingCaseId && caseIndex >= 0) {
+      cases[caseIndex] = savedCase;
+    } else {
+      cases.push(savedCase);
+    }
+
+    try {
+      await saveCaseToStorage(savedCase);
+    } catch (error) {
+      if (editingCaseId && caseIndex >= 0) {
+        cases[caseIndex] = oldCase;
+      } else {
+        cases.pop();
+      }
+      throw error;
+    }
+
+    state.model = "全部";
+    state.keyword = "";
+    state.selectedId = savedCase.id;
+    searchInput.value = "";
+    renderFilters();
+    renderCaseList();
+    updateAddressForSelectedCase();
+    closeCaseModal();
+    resetPendingFiles();
+    showToast(editingCaseId ? "案例已修改。" : "新案例已保存。");
+    editingCaseId = null;
+  } catch (error) {
+    console.warn("案例保存失败", error);
+    showToast(isCloudMode() ? "保存失败，图片或视频可能太大，或云端连接不稳定。" : "保存失败，图片或视频可能太大。请先用小文件测试。");
+  } finally {
+    isSavingCase = false;
+    saveCaseBtn.disabled = false;
+    saveCaseBtn.textContent = originalButtonText;
+  }
 }
 
 function uniqueValues(key) {
