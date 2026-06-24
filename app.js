@@ -395,9 +395,9 @@ function addFilesToZone(zone, files) {
   const solutionId = typeof zone === "string" ? "" : zone.dataset.solutionId;
 
   if (zoneType === "solution") {
-    setPendingFiles(zoneType, solutionId, [mediaFiles[0]]);
+    setPendingFiles(zoneType, solutionId, [...getPendingFiles(zoneType, solutionId), ...mediaFiles]);
     updateFileList(zoneType, solutionId);
-    showToast("已添加 1 个文件。每条排查方案先放 1 个图片或视频。");
+    showToast(`已添加 ${mediaFiles.length} 个文件。`);
     return;
   }
 
@@ -478,7 +478,7 @@ function addSolutionItem(text = "", mediaFiles = []) {
     <div class="file-field">
       <span>方案图片/视频</span>
       <div class="drop-zone compact-zone" data-file-zone="solution" data-solution-id="${id}" tabindex="0">
-        <input type="file" accept="image/*,video/*" />
+        <input type="file" accept="image/*,video/*" multiple />
         <strong>拖入图片/视频，或点这里选择</strong>
         <small>也可以复制截图后，点一下这里再粘贴。</small>
       </div>
