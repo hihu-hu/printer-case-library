@@ -682,7 +682,6 @@ h1 {
 
 .readonly-view #addCaseBtn,
 .readonly-view #shareBtn,
-.readonly-view #exportBtn,
 .readonly-view #adminLoginBtn,
 .readonly-view .edit-case-button,
 .readonly-view .delete-case-button {
@@ -690,7 +689,6 @@ h1 {
 }
 
 .guest-view #addCaseBtn,
-.guest-view #exportBtn,
 .guest-view .edit-case-button,
 .guest-view .delete-case-button {
   display: none;
@@ -828,6 +826,17 @@ h1 {
   gap: 10px 14px;
   align-items: start;
   margin-bottom: 12px;
+  border: 2px solid transparent;
+  border-radius: 8px;
+  padding: 8px;
+  cursor: text;
+  outline: none;
+}
+
+.file-field.paste-ready,
+.file-field:focus {
+  border-color: rgba(47, 128, 199, 0.45);
+  background: rgba(47, 128, 199, 0.04);
 }
 
 .case-form label span,
@@ -1268,13 +1277,25 @@ h1 {
 }
 
 .pdf-export-area {
-  position: fixed;
-  left: 0;
-  top: 0;
+  display: none;
   width: 794px;
+  min-height: 1123px;
+  margin: 0;
   background: #ffffff;
-  pointer-events: none;
-  z-index: -1;
+  color: #0f172a;
+}
+
+.pdf-exporting {
+  overflow: visible;
+  background: #ffffff;
+}
+
+.pdf-exporting > :not(.pdf-export-area) {
+  display: none !important;
+}
+
+.pdf-exporting .pdf-export-area {
+  display: block;
 }
 
 .print-wrap {
