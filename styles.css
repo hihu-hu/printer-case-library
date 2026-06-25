@@ -581,7 +581,7 @@ h1 {
 }
 
 .step-media .media-grid {
-  grid-template-columns: minmax(0, 170px);
+  grid-template-columns: repeat(auto-fit, minmax(160px, 190px));
 }
 
 .step-media .uploaded-media {
