@@ -1042,7 +1042,6 @@ async function saveCaseFromForm() {
       throw error;
     }
 
-    state.model = "全部";
     state.keyword = "";
     state.selectedId = savedCase.id;
     searchInput.value = "";
